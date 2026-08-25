@@ -16,11 +16,7 @@ import {
 } from '../../src/server/services/ticket.service';
 import { AppError } from '../../src/server/errors';
 
-/**
- * The cross-agent isolation suite. This is written before any ticket feature
- * exists, because retrofitting authorization onto working handlers is how
- * leaks survive to production.
- */
+
 
 let agentA: AuthUser;
 let agentB: AuthUser;
@@ -136,8 +132,7 @@ describe('scoped listing', () => {
   });
 
   it('refuses to let a caller-supplied filter widen the scope', async () => {
-    // An agent asking for another agent's tickets must not get them: the
-    // scope filter is spread last and overrides the request.
+    
     const result = await listTicketsForUser(agentA, {
       page: 1,
       limit: 20,
@@ -168,8 +163,7 @@ describe('role guards', () => {
   });
 
   it('blocks an agent from an admin-only gate with FORBIDDEN', () => {
-    // Distinct from the ticket case: here the agent is known and the action is
-    // simply not theirs, so 403 leaks nothing.
+    
     expect(() => requireRole(agentA, 'admin')).toThrowError(
       expect.objectContaining({ code: 'FORBIDDEN' }),
     );

@@ -5,11 +5,16 @@ import { loginSchema } from '@/server/validation/schemas';
 import { authenticateAgent } from '@/server/services/auth.service';
 import { signSessionToken } from '@/server/auth/jwt';
 import { sessionCookie } from '@/server/auth/session';
+import { enforceRateLimit, POLICIES } from '@/server/ratelimit';
+import { clientIp } from '@/server/client-ip';
 
 export const runtime = 'nodejs';
 
 export const POST = route(async (request) => {
   await connectToDatabase();
+
+
+  await enforceRateLimit(`login:${clientIp(request)}`, POLICIES.login);
 
   const input = loginSchema.parse(await readJson(request));
   const claims = await authenticateAgent(input);

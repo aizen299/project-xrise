@@ -45,10 +45,7 @@ export interface SeedSummary {
   total: number;
 }
 
-/**
- * Idempotent: wipes and rebuilds. Reuses whatever connection is already
- * cached, so tests can drive it against an in-memory server.
- */
+
 export async function seed(): Promise<SeedSummary> {
   await connectToDatabase();
 
@@ -94,7 +91,6 @@ export async function seed(): Promise<SeedSummary> {
   };
 }
 
-/** CLI entry point — only when this file is executed, not when imported. */
 const isDirectRun =
   process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
 

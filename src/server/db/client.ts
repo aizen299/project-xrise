@@ -21,7 +21,10 @@ declare global {
 const cache: MongooseCache = globalThis.__xriseMongoose ?? { conn: null, promise: null };
 globalThis.__xriseMongoose = cache;
 
-export async function connectToDatabase(uri?: string): Promise<typeof mongoose> {
+export async function connectToDatabase(
+  uri?: string,
+  overrides?: mongoose.ConnectOptions,
+): Promise<typeof mongoose> {
   if (cache.conn) return cache.conn;
 
   if (!cache.promise) {
@@ -38,6 +41,7 @@ export async function connectToDatabase(uri?: string): Promise<typeof mongoose> 
         // Index builds are a deploy-time concern, not a request-time one.
         // Production indexes are applied by `npm run db:indexes`.
         autoIndex: process.env.NODE_ENV !== 'production',
+        ...overrides,
       })
       .then((m) => {
         logger.info({ event: 'db.connected' }, 'MongoDB connected');

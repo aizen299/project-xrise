@@ -10,7 +10,6 @@ beforeAll(startTestDb);
 afterAll(stopTestDb);
 afterEach(clearTestDb);
 
-/** Index keys, normalised to a comparable string, ignoring _id_. */
 async function indexKeysOf(model: { collection: { indexes(): Promise<unknown[]> } }) {
   const indexes = (await model.collection.indexes()) as Array<{ name: string; key: Record<string, unknown> }>;
   return indexes.filter((i) => i.name !== '_id_').map((i) => JSON.stringify(i.key)).sort();
@@ -32,7 +31,7 @@ describe('database foundation', () => {
     expect(keys).toContain(JSON.stringify({ assigneeId: 1, status: 1, priority: 1, createdAt: -1 }));
     expect(keys).toContain(JSON.stringify({ status: 1, priority: 1, createdAt: -1 }));
     expect(keys).toContain(JSON.stringify({ createdAt: -1 }));
-    // Text indexes are stored with an internal _fts key rather than the field names.
+    
     const raw = (await Ticket.collection.indexes()) as Array<{ name: string }>;
     expect(raw.some((i) => i.name === 'ticket_search')).toBe(true);
   });
@@ -72,8 +71,7 @@ describe('database foundation', () => {
     expect(ticket.priority).toBe('medium');
     expect(ticket.assigneeId).toBeNull();
     expect(ticket.lastAgentReply).toBeNull();
-    // Lowercased so the public status lookup matches regardless of how the
-    // customer typed their address.
+    
     expect(ticket.customerEmail).toBe('mixedcase@example.com');
   });
 
@@ -84,9 +82,7 @@ describe('database foundation', () => {
     await expect(
       TicketEvent.create({
         ticketId: ticket._id,
-        // Cast past the compile-time union on purpose: this asserts the
-        // *runtime* Mongoose enum still rejects it, which is what protects
-        // against a bad value arriving from the database or an untyped caller.
+        
         type: 'exploded' as unknown as 'created',
         actor: { id: null, name: 'x', kind: 'agent' },
       }),
@@ -131,7 +127,7 @@ describe('error serialisation', () => {
   });
 
   it('never leaks an unexpected error message to the client', () => {
-    // Assembled from fragments so the literal does not trip secret scanning.
+    
     const password = 'n0t-a-real-password';
     const leaky = new Error(
       `${['mongodb', '+srv:', '//'].join('')}dbuser:${password}@cluster0.ab12c.mongodb.net failed`,

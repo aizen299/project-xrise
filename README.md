@@ -3,9 +3,10 @@
 A minimal helpdesk. Customers submit and track support tickets without an
 account; agents and admins triage, reply, and close them behind JWT auth.
 
-> **Status: Phase 2 of 6 complete** — foundation, data layer, and agent
-> authentication with role-scoped authorization. The public ticket flow, the
-> agent dashboard and the ticket detail view are not built yet. See "Roadmap".
+> **Status: Phase 3 of 6 complete** — foundation, agent authentication with
+> role-scoped authorization, and the full public ticket flow with rate
+> limiting. The agent dashboard and ticket detail view are not built yet.
+> See "Roadmap".
 
 ## Stack
 
@@ -192,6 +193,16 @@ outside your scope returns 404, not 403, so IDs cannot be probed for existence.
 **Rate limiting is stored in MongoDB, not in memory.** Serverless instances do
 not share memory, so an in-process counter is bypassed by landing on a cold
 container. A TTL-indexed collection keeps the window shared and self-reaping.
+Budgets are consumed *before* validation, so malformed floods cost the caller
+too, and each entry point has its own budget: ticket submission (10 per 10
+min), status lookup (30 per 10 min) and login (10 per 15 min). A 429 always
+carries `Retry-After`.
+
+**Caller identity for rate limiting comes from `x-forwarded-for`.** That header
+is only trustworthy behind a proxy that overwrites it — true on Vercel, not
+true of a naked origin, where a caller could rotate the value to evade the
+limit. Local development has no such header, so every caller shares one bucket:
+the safe direction to fail.
 
 **The timeline is a separate append-only collection, but the latest agent reply
 is denormalised onto the ticket.** Event history is unbounded and would grow a
@@ -209,7 +220,7 @@ the ticket table.
 |---|---|---|
 | 1 | Foundation: models, indexes, errors, logging, seed, test harness | **done** |
 | 2 | JWT auth, role guards, `scopeTicketQuery` + its tests | **done** |
-| 3 | Public ticket submission and status check, rate limiting | not started |
+| 3 | Public ticket submission and status check, rate limiting | **done** |
 | 4 | Agent dashboard: pagination, filters, server-side search | not started |
 | 5 | Ticket detail: timeline, reply, status change, admin reassign | not started |
 | 6 | Hardening, `ARCHITECTURE.md`, deployment, stretch goals | not started |
@@ -217,14 +228,16 @@ the ticket table.
 ## Known bugs and limitations
 
 - Not deployed yet; no live URL.
-- **Login is not rate limited yet.** The shared rate limiter is built in Phase 3
-  alongside the public endpoints; until then the login endpoint can be
-  brute-forced. This is the most important outstanding gap.
 - No CSRF token. `SameSite=Lax` plus JSON-only mutating endpoints covers the
   realistic cases at this scale; a double-submit token is the documented
   upgrade.
 - MongoDB `$text` search has no partial or prefix matching — searching `data`
   will not match `database`. Noted now because it constrains Phase 4.
 - `npm run db:seed` is destructive: it wipes users, tickets and events.
-- Ticket submission, status lookup, the dashboard list and ticket detail are
-  not implemented; `/dashboard` currently shows only a scoped ticket count.
+- The dashboard list, filters, search and ticket detail are not implemented;
+  `/dashboard` currently shows only a scoped ticket count.
+- Fixed-window rate limiting can admit up to 2x the limit across a window
+  boundary. Acceptable at this scale; a sliding window in Redis is the upgrade.
+- The public status check identifies a customer by ticket ID plus email, which
+  is a bearer-style claim rather than authentication. Ticket IDs are therefore
+  random (31^10 combinations) and the endpoint is rate limited.

@@ -1,11 +1,6 @@
 import type { NextConfig } from 'next';
 
-/**
- * Applied to every response. The app is same-origin (UI and API ship in one
- * Next.js deployment), so there is no Access-Control-Allow-Origin header to
- * emit — cross-origin browser calls are refused by default, which is the
- * locked-down CORS posture the assignment asks for (REQ-035).
- */
+
 const securityHeaders = [
   { key: 'X-Content-Type-Options', value: 'nosniff' },
   { key: 'X-Frame-Options', value: 'DENY' },
@@ -14,7 +9,7 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  // Don't advertise the framework; it narrows an attacker's search space.
+
   poweredByHeader: false,
 
   async headers() {

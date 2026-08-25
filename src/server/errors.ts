@@ -40,13 +40,21 @@ export class AppError extends Error {
   readonly code: ErrorCode;
   readonly status: number;
   readonly details?: FieldIssue[];
+  /** Populated for RATE_LIMITED so the transport can send `Retry-After`. */
+  readonly retryAfterSeconds?: number;
 
-  constructor(code: ErrorCode, message: string, details?: FieldIssue[]) {
+  constructor(
+    code: ErrorCode,
+    message: string,
+    details?: FieldIssue[],
+    retryAfterSeconds?: number,
+  ) {
     super(message);
     this.name = 'AppError';
     this.code = code;
     this.status = ERROR_STATUS[code];
     this.details = details;
+    this.retryAfterSeconds = retryAfterSeconds;
   }
 }
 
@@ -63,8 +71,10 @@ export const forbidden = (message = 'You do not have access to this resource.') 
  */
 export const notFound = (message = 'Not found.') => new AppError('NOT_FOUND', message);
 export const conflict = (message: string) => new AppError('CONFLICT', message);
-export const rateLimited = (message = 'Too many requests. Please try again shortly.') =>
-  new AppError('RATE_LIMITED', message);
+export const rateLimited = (
+  message = 'Too many requests. Please try again shortly.',
+  retryAfterSeconds?: number,
+) => new AppError('RATE_LIMITED', message, undefined, retryAfterSeconds);
 
 /** Flattens a ZodError into the transport-level field issue list. */
 export function zodToIssues(error: ZodError): FieldIssue[] {

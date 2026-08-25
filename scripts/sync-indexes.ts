@@ -2,11 +2,7 @@ import 'dotenv/config';
 import { connectToDatabase, disconnectFromDatabase } from '../src/server/db/client';
 import { RateLimit, Ticket, TicketEvent, User } from '../src/server/db/models';
 
-/**
- * Applies every declared index. Run this against production after a deploy:
- * `autoIndex` is disabled there, because building an index on the request path
- * of a cold lambda is a good way to time out a user's first page load.
- */
+
 async function syncIndexes(): Promise<void> {
   await connectToDatabase();
 

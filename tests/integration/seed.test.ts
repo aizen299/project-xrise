@@ -35,7 +35,7 @@ describe('seed (REQ-005)', () => {
   });
 
   it('produces data where the two agents own disjoint, non-empty ticket sets', () => {
-    // Without this, the agent-vs-admin scoping split cannot be demonstrated.
+    
     expect(summary.agent1).toBeGreaterThan(0);
     expect(summary.agent2).toBeGreaterThan(0);
     expect(summary.agent1 + summary.agent2 + summary.unassigned).toBe(summary.total);

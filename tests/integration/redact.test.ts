@@ -1,15 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { redactErrorMessage, redactSecrets } from '../../src/server/redact';
 
-/*
- * Fixtures are assembled from fragments at runtime rather than written as
- * literals.
- *
- * A connection-string-shaped literal in source trips GitHub secret scanning,
- * which matches on shape and cannot distinguish an obviously fake fixture from
- * a live credential. Splitting the literal keeps these tests meaningful without
- * generating a permanent stream of false-positive alerts on every push.
- */
 const SCHEME_SRV = ['mongodb', '+srv:', '//'].join('');
 const SCHEME = ['mongodb:', '//'].join('');
 

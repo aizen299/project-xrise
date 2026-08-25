@@ -7,7 +7,7 @@ export default defineConfig({
     globals: true,
     include: ['tests/**/*.test.ts'],
     setupFiles: ['./tests/setup.ts'],
-    // The first run downloads a mongod binary for mongodb-memory-server.
+  
     testTimeout: 30_000,
     hookTimeout: 120_000,
   },

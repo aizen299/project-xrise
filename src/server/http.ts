@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { logger, newRequestId } from './logger';
-import { badRequest, toErrorResponse } from './errors';
+import { AppError, badRequest, toErrorResponse } from './errors';
 
 type Handler<C> = (request: NextRequest, context: C) => Promise<Response>;
 
@@ -30,7 +30,14 @@ export function route<C = unknown>(handler: Handler<C>): Handler<C> {
         { requestId, method: request.method, path, status, durationMs: Date.now() - startedAt, err: cause },
         'request failed',
       );
-      return NextResponse.json(body, { status });
+      // A 429 without Retry-After leaves the caller guessing; well-behaved
+      // clients back off correctly when told how long to wait.
+      const headers =
+        error instanceof AppError && error.retryAfterSeconds
+          ? { 'Retry-After': String(error.retryAfterSeconds) }
+          : undefined;
+
+      return NextResponse.json(body, { status, headers });
     }
   };
 }

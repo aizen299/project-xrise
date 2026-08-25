@@ -3,13 +3,7 @@ import { redirect } from 'next/navigation';
 import { getSession } from '@/server/auth/session';
 import { SignOutButton } from './sign-out-button';
 
-/**
- * Defence in depth. proxy.ts already redirects an unauthenticated visitor, but
- * proxy is an optimisation that may run at the CDN edge — the session is
- * re-derived here, and again inside every Route Handler.
- */
-// Typed explicitly rather than with LayoutProps<...>: Next's typegen only
-// emits layout keys for URL-bearing segments, and `(agent)` is a route group.
+
 export default async function AgentLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
   if (!session) redirect('/login');

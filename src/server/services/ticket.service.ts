@@ -1,14 +1,13 @@
 import { Types } from 'mongoose';
-import { Ticket, type TicketDoc } from '../db/models';
+import { Ticket, TicketEvent, type TicketDoc } from '../db/models';
 import { scopeTicketQuery, type AuthUser } from '../auth/guards';
 import { notFound } from '../errors';
+import { withTransaction } from '../db/transaction';
+import { generateTicketId } from '../../lib/ticket-id';
+import type { CreateTicketInput, StatusLookupInput } from '../validation/schemas';
+import type { TicketPriority, TicketStatus } from '../../types';
 
-/**
- * Every function here composes `scopeTicketQuery`. The scope filter is always
- * spread LAST, so a caller-supplied filter can never widen it — an agent
- * passing `assigneeId=<someone else>` still has their own id forced back on
- * top of it.
- */
+
 
 export interface ListOptions {
   page: number;
@@ -36,8 +35,6 @@ export async function listTicketsForUser(
       .skip((page - 1) * limit)
       .limit(limit)
       .lean<TicketDoc[]>(),
-    // The count is scoped too. Counting the unscoped set would leak the
-    // existence of other agents' tickets through the pagination total.
     Ticket.countDocuments(query),
   ]);
 
@@ -51,11 +48,7 @@ export async function countTicketsForUser(
   return Ticket.countDocuments({ ...filters, ...scopeTicketQuery(user) });
 }
 
-/**
- * Throws `NOT_FOUND` both when the ticket does not exist and when it exists
- * but belongs to another agent. Returning 403 for the second case would
- * confirm the id is real, letting an agent probe the ticket space.
- */
+
 export async function getTicketForUser(id: string, user: AuthUser): Promise<TicketDoc> {
   if (!Types.ObjectId.isValid(id)) throw notFound('Ticket not found.');
 
@@ -66,4 +59,84 @@ export async function getTicketForUser(id: string, user: AuthUser): Promise<Tick
 
   if (!ticket) throw notFound('Ticket not found.');
   return ticket;
+}
+
+
+
+
+const MAX_TICKET_ID_ATTEMPTS = 3;
+
+
+export async function createTicket(input: CreateTicketInput): Promise<{ ticketId: string }> {
+  for (let attempt = 1; attempt <= MAX_TICKET_ID_ATTEMPTS; attempt += 1) {
+    const ticketId = generateTicketId();
+
+    try {
+      await withTransaction(async (session) => {
+        const [ticket] = await Ticket.create([{ ...input, ticketId }], { session });
+        await TicketEvent.create(
+          [
+            {
+              ticketId: ticket._id,
+              type: 'created',
+              actor: { id: null, name: input.customerName, kind: 'customer' },
+              payload: { priority: input.priority },
+            },
+          ],
+          { session },
+        );
+      });
+
+      return { ticketId };
+    } catch (error) {
+      
+      const isCollision =
+        typeof error === 'object' &&
+        error !== null &&
+        (error as { code?: number }).code === 11000;
+
+      if (!isCollision || attempt === MAX_TICKET_ID_ATTEMPTS) throw error;
+    }
+  }
+
+  throw new Error('Could not allocate a unique ticket id.');
+}
+
+export interface PublicTicketStatus {
+  ticketId: string;
+  subject: string;
+  status: TicketStatus;
+  priority: TicketPriority;
+  createdAt: Date;
+  latestReply: { body: string; authorName: string; createdAt: Date } | null;
+}
+
+
+export async function getPublicTicketStatus(
+  input: StatusLookupInput,
+): Promise<PublicTicketStatus> {
+  const ticket = await Ticket.findOne(
+    { ticketId: input.ticketId, customerEmail: input.email },
+    { ticketId: 1, subject: 1, status: 1, priority: 1, createdAt: 1, lastAgentReply: 1 },
+  ).lean<TicketDoc>();
+
+  if (!ticket) {
+    
+    throw notFound('No ticket matches that ID and email address.');
+  }
+
+  return {
+    ticketId: ticket.ticketId,
+    subject: ticket.subject,
+    status: ticket.status,
+    priority: ticket.priority,
+    createdAt: ticket.createdAt,
+    latestReply: ticket.lastAgentReply
+      ? {
+          body: ticket.lastAgentReply.body,
+          authorName: ticket.lastAgentReply.authorName,
+          createdAt: ticket.lastAgentReply.createdAt,
+        }
+      : null,
+  };
 }

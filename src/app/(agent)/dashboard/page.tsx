@@ -5,11 +5,6 @@ import { countTicketsForUser } from '@/server/services/ticket.service';
 
 export const metadata = { title: 'Dashboard · XRise Helpdesk' };
 
-/**
- * Phase 2 placeholder. It exists to prove the whole chain end to end — cookie,
- * JWT verification, session, and a database query that is scoped by role. The
- * real list, filters, search and pagination arrive in Phase 4.
- */
 export default async function DashboardPage() {
   const session = await getSession();
   if (!session) redirect('/login');

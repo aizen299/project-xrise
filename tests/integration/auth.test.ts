@@ -7,7 +7,7 @@ import { signSessionToken, verifySessionToken, type SessionClaims } from '../../
 import { authenticateAgent } from '../../src/server/services/auth.service';
 import type { AppError } from '../../src/server/errors';
 
-/** Captures the rejection of a promise, typed, so assertions can inspect it. */
+
 async function rejection(promise: Promise<unknown>): Promise<AppError> {
   try {
     await promise;
@@ -59,7 +59,6 @@ describe('session tokens', () => {
     const [header, payload, signature] = token.split('.');
     const decoded = JSON.parse(Buffer.from(payload!, 'base64url').toString());
 
-    // The classic privilege escalation attempt.
     decoded.role = 'admin';
 
     const forgedPayload = Buffer.from(JSON.stringify(decoded)).toString('base64url');
@@ -148,8 +147,7 @@ describe('agent login', () => {
   });
 
   it('gives an unknown address exactly the same error as a wrong password', async () => {
-    // Any difference here — message, code or status — turns login into an
-    // account-enumeration oracle.
+    
     const wrongPassword = await rejection(
       authenticateAgent({ email: 'agent1@xriseai.com', password: 'wrong' }),
     );

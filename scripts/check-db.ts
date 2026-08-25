@@ -3,12 +3,6 @@ import mongoose from 'mongoose';
 import { connectToDatabase, disconnectFromDatabase } from '../src/server/db/client';
 import { redactErrorMessage } from '../src/server/redact';
 
-/**
- * Verifies the Atlas connection string before you waste time debugging a
- * seed or a page load. Reports whether the deployment is a replica set,
- * because multi-document transactions require one — Atlas always is, a bare
- * local `mongod` is not.
- */
 async function check(): Promise<void> {
   const startedAt = Date.now();
   await connectToDatabase();

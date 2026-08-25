@@ -5,7 +5,6 @@ import { LoginForm } from './login-form';
 
 export const metadata = { title: 'Agent sign in · XRise Helpdesk' };
 
-/** Only ever redirect to an in-app path — an open redirect is a phishing tool. */
 function safeNext(value: string | undefined): string {
   if (!value || !value.startsWith('/') || value.startsWith('//')) return '/dashboard';
   return value;
