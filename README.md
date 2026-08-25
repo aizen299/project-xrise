@@ -3,10 +3,11 @@
 A minimal helpdesk. Customers submit and track support tickets without an
 account; agents and admins triage, reply, and close them behind JWT auth.
 
-> **Status: Phase 4 of 6 complete** — foundation, agent authentication with
-> role-scoped authorization, the public ticket flow with rate limiting, and the
-> agent dashboard with filters, server-side search and pagination. The ticket
-> detail view is not built yet. See "Roadmap".
+> **Status: Phase 5 of 6 complete** — foundation, agent authentication with
+> role-scoped authorization, the public ticket flow with rate limiting, the
+> agent dashboard, and the ticket detail view with timeline, replies, status
+> changes, admin reassignment and optimistic UI. Remaining: hardening,
+> `ARCHITECTURE.md` and deployment. See "Roadmap".
 
 ## Stack
 
@@ -219,6 +220,18 @@ the "library because it exists" trap the assignment's wording guards against.
 Client state is limited to what is genuinely local: form fields via
 `react-hook-form`, and `useTransition` for pending navigation feedback.
 
+**Optimistic UI is limited to replies and status changes.** Both are
+single-field, instantly reversible actions where the perceived latency is worth
+removing. A failed request restores the previous value and surfaces the error.
+Reassignment is deliberately not optimistic: guessing wrong about who owns a
+ticket is more confusing than a brief wait.
+
+**Timestamps render as UTC on the server and switch to local time after
+hydration**, via `useSyncExternalStore` with a server snapshot. Calling
+`toLocaleString()` directly inside a Client Component produces different text on
+server and client whenever their time zones differ, and React responds by
+discarding the entire subtree — which silently leaves the page non-interactive.
+
 **Ticket IDs are random, not sequential.** The status-check endpoint is
 unauthenticated; a sequential ID plus a customer email would let anyone walk
 the ticket table.
@@ -231,7 +244,7 @@ the ticket table.
 | 2 | JWT auth, role guards, `scopeTicketQuery` + its tests | **done** |
 | 3 | Public ticket submission and status check, rate limiting | **done** |
 | 4 | Agent dashboard: pagination, filters, server-side search | **done** |
-| 5 | Ticket detail: timeline, reply, status change, admin reassign | not started |
+| 5 | Ticket detail: timeline, reply, status change, admin reassign | **done** |
 | 6 | Hardening, `ARCHITECTURE.md`, deployment, stretch goals | not started |
 
 ## Known bugs and limitations
@@ -250,6 +263,14 @@ the ticket table.
   without changing the query surface.
 - Pagination uses `skip`/`limit`, which degrades on deep pages. Fine at this
   scale; cursor pagination is the documented upgrade.
+- **No route-level `loading.tsx` skeletons.** On Next.js 16.3.3 with Turbopack,
+  adding a `loading.tsx` to any route in this project leaves that route's entire
+  page subtree unhydrated — server HTML renders, but no event handlers attach,
+  so forms fall back to native submission. Reproduced on both a public and an
+  authenticated route, in `next dev` and in a production `next build`, and with
+  a `loading.tsx` containing nothing but a `<p>`. Pending feedback therefore
+  comes from `useTransition` ("Updating…", "Saving…") and inline states instead.
+  Worth re-testing on a later Next release.
 - Fixed-window rate limiting can admit up to 2x the limit across a window
   boundary. Acceptable at this scale; a sliding window in Redis is the upgrade.
 - The public status check identifies a customer by ticket ID plus email, which

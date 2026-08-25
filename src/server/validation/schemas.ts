@@ -89,6 +89,28 @@ export const ticketListQuerySchema = z.object({
 });
 export type TicketListQuery = z.infer<typeof ticketListQuerySchema>;
 
+export const replySchema = z.object({
+  body: z
+    .string()
+    .trim()
+    .min(1, 'A reply cannot be empty.')
+    .max(5000, 'Reply must be 5000 characters or fewer.'),
+});
+export type ReplyInput = z.infer<typeof replySchema>;
+
+export const statusChangeSchema = z.object({
+  status: ticketStatusSchema,
+});
+export type StatusChangeInput = z.infer<typeof statusChangeSchema>;
+
+export const reassignSchema = z.object({
+  assigneeId: z.union([
+    z.literal(UNASSIGNED),
+    z.string().regex(OBJECT_ID_PATTERN, 'Invalid assignee.'),
+  ]),
+});
+export type ReassignInput = z.infer<typeof reassignSchema>;
+
 export function parseTicketListQuery(params: URLSearchParams): TicketListQuery {
   const raw: Record<string, string> = {};
   for (const key of ['page', 'limit', 'status', 'priority', 'assigneeId', 'q']) {
