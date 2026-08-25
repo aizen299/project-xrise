@@ -1,40 +1,53 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
 # dependencies
-node_modules/
-.pnp
-.pnp.js
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
 
-# next.js
-.next/
-out/
-build/
-dist/
-CLAUDE.md
-
-# env — real secrets never committed; .env.example IS committed
-.env
-.env.local
-.env*.local
-.env.development
-.env.production
-
-# testing / coverage
-coverage/
+# testing
+/coverage
 .nyc_output/
 
-# logs
+# next.js
+/.next/
+/out/
+
+# production
+/build
+/dist
+
+# env — real secrets never committed, but .env.example MUST be (REQ-033)
+.env*
+!.env.example
+
+# misc
+.DS_Store
+*.pem
+.idea/
+*.swp
+
+# debug
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+.pnpm-debug.log*
 pnpm-debug.log*
 
-# editor / OS
-.DS_Store
-.idea/
-*.swp
-
-# misc
+# vercel
 .vercel
+
+# typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local-only working docs (not part of the deliverable)
+CLAUDE.md
+PROJECT_PLAN.md
 *.pdf
