@@ -3,10 +3,10 @@
 A minimal helpdesk. Customers submit and track support tickets without an
 account; agents and admins triage, reply, and close them behind JWT auth.
 
-> **Status: Phase 3 of 6 complete** — foundation, agent authentication with
-> role-scoped authorization, and the full public ticket flow with rate
-> limiting. The agent dashboard and ticket detail view are not built yet.
-> See "Roadmap".
+> **Status: Phase 4 of 6 complete** — foundation, agent authentication with
+> role-scoped authorization, the public ticket flow with rate limiting, and the
+> agent dashboard with filters, server-side search and pagination. The ticket
+> detail view is not built yet. See "Roadmap".
 
 ## Stack
 
@@ -210,6 +210,15 @@ ticket document toward the 16MB cap. Normalising it would, however, force a
 second query on the public status check — the only unauthenticated endpoint. So
 that one derived field is copied back, written in the same transaction.
 
+**The URL is the source of truth for dashboard state, and there is no client
+cache library.** Filters, search and page number live in the query string, so a
+view is shareable, bookmarkable and correct under the back button, and the
+Server Component can read them directly. Adding TanStack Query (or Redux, or
+Zustand) would introduce a second copy of state that the URL already holds —
+the "library because it exists" trap the assignment's wording guards against.
+Client state is limited to what is genuinely local: form fields via
+`react-hook-form`, and `useTransition` for pending navigation feedback.
+
 **Ticket IDs are random, not sequential.** The status-check endpoint is
 unauthenticated; a sequential ID plus a customer email would let anyone walk
 the ticket table.
@@ -221,7 +230,7 @@ the ticket table.
 | 1 | Foundation: models, indexes, errors, logging, seed, test harness | **done** |
 | 2 | JWT auth, role guards, `scopeTicketQuery` + its tests | **done** |
 | 3 | Public ticket submission and status check, rate limiting | **done** |
-| 4 | Agent dashboard: pagination, filters, server-side search | not started |
+| 4 | Agent dashboard: pagination, filters, server-side search | **done** |
 | 5 | Ticket detail: timeline, reply, status change, admin reassign | not started |
 | 6 | Hardening, `ARCHITECTURE.md`, deployment, stretch goals | not started |
 
@@ -234,8 +243,13 @@ the ticket table.
 - MongoDB `$text` search has no partial or prefix matching — searching `data`
   will not match `database`. Noted now because it constrains Phase 4.
 - `npm run db:seed` is destructive: it wipes users, tickets and events.
-- The dashboard list, filters, search and ticket detail are not implemented;
-  `/dashboard` currently shows only a scoped ticket count.
+- Ticket detail, replies, status changes and admin reassignment are not
+  implemented; ticket rows link to a route that does not exist yet.
+- Search uses a MongoDB `$text` index, so it matches whole stemmed words only:
+  searching `data` will not match `database`. Atlas Search would fix this
+  without changing the query surface.
+- Pagination uses `skip`/`limit`, which degrades on deep pages. Fine at this
+  scale; cursor pagination is the documented upgrade.
 - Fixed-window rate limiting can admit up to 2x the limit across a window
   boundary. Acceptable at this scale; a sliding window in Redis is the upgrade.
 - The public status check identifies a customer by ticket ID plus email, which

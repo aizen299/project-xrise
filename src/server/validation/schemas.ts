@@ -72,3 +72,28 @@ export const statusLookupSchema = z.object({
     .pipe(z.email('Enter the email address you used on the ticket.')),
 });
 export type StatusLookupInput = z.infer<typeof statusLookupSchema>;
+
+export const OBJECT_ID_PATTERN = /^[a-f0-9]{24}$/;
+
+export const UNASSIGNED = 'unassigned' as const;
+
+export const ticketListQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).catch(1),
+  limit: z.coerce.number().int().min(1).max(50).catch(20),
+  status: ticketStatusSchema.optional(),
+  priority: ticketPrioritySchema.optional(),
+  assigneeId: z
+    .union([z.literal(UNASSIGNED), z.string().regex(OBJECT_ID_PATTERN, 'Invalid assignee.')])
+    .optional(),
+  q: z.string().trim().min(1).max(200).optional(),
+});
+export type TicketListQuery = z.infer<typeof ticketListQuerySchema>;
+
+export function parseTicketListQuery(params: URLSearchParams): TicketListQuery {
+  const raw: Record<string, string> = {};
+  for (const key of ['page', 'limit', 'status', 'priority', 'assigneeId', 'q']) {
+    const value = params.get(key);
+    if (value !== null && value !== '') raw[key] = value;
+  }
+  return ticketListQuerySchema.parse(raw);
+}
