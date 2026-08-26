@@ -20,8 +20,16 @@ const REDACT_PATHS = [
   'req.headers.cookie',
 ];
 
+const PINO_LEVELS = ['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'];
+
+function resolveLevel(): string {
+  const requested = process.env.LOG_LEVEL?.trim();
+  if (requested && PINO_LEVELS.includes(requested)) return requested;
+  return process.env.NODE_ENV === 'test' ? 'silent' : 'info';
+}
+
 export const logger = pino({
-  level: process.env.LOG_LEVEL ?? (process.env.NODE_ENV === 'test' ? 'silent' : 'info'),
+  level: resolveLevel(),
   base: { service: 'xrise-helpdesk' },
   redact: { paths: REDACT_PATHS, censor: '[REDACTED]' },
   formatters: { level: (label) => ({ level: label }) },

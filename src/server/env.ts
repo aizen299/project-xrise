@@ -25,10 +25,18 @@ export type Env = z.infer<typeof envSchema>;
 
 let cached: Env | null = null;
 
+function withoutBlanks(source: NodeJS.ProcessEnv): Record<string, string> {
+  const present: Record<string, string> = {};
+  for (const [key, value] of Object.entries(source)) {
+    if (typeof value === 'string' && value.trim() !== '') present[key] = value;
+  }
+  return present;
+}
+
 export function getEnv(): Env {
   if (cached) return cached;
 
-  const parsed = envSchema.safeParse(process.env);
+  const parsed = envSchema.safeParse(withoutBlanks(process.env));
   if (!parsed.success) {
     const problems = parsed.error.issues
       .map((issue) => `  - ${issue.path.join('.') || '(root)'}: ${issue.message}`)
