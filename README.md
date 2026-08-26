@@ -39,8 +39,6 @@ admin sees every ticket and can reassign.
 4. **Connect → Drivers** → copy the Node.js connection string and append the
    database name: `...mongodb.net/xrise-helpdesk?retryWrites=true&w=majority`.
 
-
-
 ### Start
 
 ```bash
@@ -108,7 +106,23 @@ All use the password `Password123!`.
 | `agent2@xriseai.com` | agent | only tickets assigned to them (4) |
 | `admin@xriseai.com` | admin | every ticket (12), and can reassign |
 
+## Environment variables
 
+| Variable | Required | Description |
+|---|---|---|
+| `MONGODB_URI` | yes | MongoDB connection string |
+| `JWT_SECRET` | yes | Signing secret, minimum 32 characters |
+| `APP_ORIGIN` | no | Canonical origin. Declared for CORS and absolute-URL use; defaults to `http://localhost:3000` and is not read at runtime yet |
+| `NODE_ENV` | no | `development` \| `test` \| `production` |
+| `LOG_LEVEL` | no | pino level, defaults to `info` |
+| `SEED_AGENT_PASSWORD` | no | Password for seeded agents (dev only) |
+| `SEED_ADMIN_PASSWORD` | no | Password for the seeded admin (dev only) |
+| `LLM_PROVIDER` | no | `groq` \| `openrouter` \| `ollama`. Defaults to `groq` |
+| `LLM_API_KEY` | no | Enables the AI drafting feature. Omit to disable it |
+| `LLM_MODEL` | no | Overrides the provider's default model |
+| `LLM_BASE_URL` | no | Overrides the provider's base URL |
+
+`.env` is git-ignored. `.env.example` is committed and lists every key.
 
 ## Scripts
 
@@ -202,7 +216,7 @@ Full detail is in [ARCHITECTURE.md](./ARCHITECTURE.md).
 npm test
 ```
 
-130 tests. The highest-value ones are in
+153 tests. The highest-value ones are in
 `tests/integration/authorization.test.ts`: cross-agent denial by direct ID,
 scoped pagination counts, and the assertion that a caller-supplied filter cannot
 widen scope. Two tests run `.explain()` and assert the dashboard query uses
@@ -223,6 +237,7 @@ To deploy your own copy:
    Vercel URL), and optionally `LLM_API_KEY`.
 3. Atlas → **Network Access** → allow `0.0.0.0/0`, since Vercel has no static
    egress range.
+4. After the first deploy, apply indexes and seed:
 
 ```bash
 npm run db:indexes && npm run db:seed

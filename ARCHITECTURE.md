@@ -224,3 +224,24 @@ in `FORBIDDEN`/`NOT_FOUND` on ticket detail (probing), login failure spikes
 rising sharply on the public endpoints. Health of the Mongo connection itself
 deserves a synthetic check, since a failed connection currently surfaces to users
 as a generic 500.
+
+## Fixes for limitations
+
+1. **Move attachments to object storage.** They currently live in GridFS, which
+   avoided a second service but consumes cluster storage — a real constraint on
+   Atlas M0's 512MB. S3-compatible storage with presigned uploads takes the file
+   bytes off the database and off the application's request path entirely, and
+   adds room for virus scanning before an agent opens anything.
+
+2. **Replace the SSE poll with change streams or a pub/sub broker.** The stream
+   currently polls every three seconds, which is one query per watching agent per
+   interval. That is fine for a handful of agents and wasteful at a hundred.
+   MongoDB change streams on a long-lived host, or Pusher/Ably on serverless,
+   removes the polling entirely and cuts update latency to near zero.
+
+3. **Cursor pagination and Atlas Search.** `skip`/`limit` degrades with depth and
+   the `$text` index matches only whole stemmed words, so `data` never finds
+   `database`. Both are invisible at seed scale and both bite at 1M tickets.
+
+Close behind: a CSRF double-submit token to complement `SameSite=Lax`, and
+audit-log retention with export.
