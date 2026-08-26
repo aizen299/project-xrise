@@ -18,6 +18,8 @@ account; agents and admins triage, reply, and close them behind JWT auth.
 | Logging | pino (structured JSON, with redaction) |
 | Tests | Vitest + `mongodb-memory-server` |
 | AI | Groq (OpenAI-compatible); OpenRouter and Ollama also supported |
+| Real-time | Server-Sent Events (`EventSource`) |
+| File storage | GridFS (MongoDB) |
 
 ## Running locally
 
@@ -190,6 +192,40 @@ per 10 minutes per agent.
 Get a free key at [console.groq.com](https://console.groq.com), then set
 `LLM_API_KEY` in `.env`. **Never commit it.**
 
+## Real-time updates
+
+Ticket detail subscribes to `GET /api/tickets/:id/stream`, a Server-Sent Events
+endpoint. When another agent replies, changes status, or an admin reassigns, the
+open page refreshes its server data within about three seconds.
+
+**SSE rather than WebSockets** because Vercel's serverless runtime cannot hold a
+WebSocket. **Polling inside the stream rather than MongoDB change streams**
+because change streams need a persistent connection and serverless containers
+freeze between invocations; a bounded poll is predictable on any host. Each
+stream lives 50 seconds and then closes cleanly, and `EventSource` reconnects on
+its own.
+
+The stream is scoped exactly like every other ticket route — the poll calls a
+scoped service function, so authorization is re-checked on **every poll**, not
+just at connection time. An agent streaming another agent's ticket gets 404.
+
+## File attachments
+
+Customers can attach up to **3 files of 5MB each** to a ticket. Agents see them
+on the ticket detail; the customer sees them on the public status page.
+
+Files live in **GridFS inside MongoDB** — no second service, and it works on
+Atlas and in Docker unchanged. Serving user-uploaded files is an XSS vector, so
+downloads are defended in depth: an allow-list of content types (images, PDF,
+plain text, CSV — never HTML, SVG or scripts), filenames stripped to a safe
+basename, `Content-Disposition: attachment` so nothing renders inline,
+`X-Content-Type-Options: nosniff`, and `Content-Security-Policy: default-src
+'none'; sandbox`.
+
+Downloads are authorized two ways by the same endpoint: an authenticated agent
+must have the parent ticket in scope, and an anonymous caller must supply the
+matching ticket ID and email. Anything else is a 404.
+
 ## Architecture decisions
 
 Full detail is in [ARCHITECTURE.md](./ARCHITECTURE.md). The short version:
@@ -285,5 +321,9 @@ cluster when you run them.
   a bearer-style claim rather than authentication. IDs are therefore random and
   the endpoint is rate limited.
 - `npm run db:seed` is destructive: it wipes users, tickets and events.
-- Real-time updates and file attachments are not implemented — both are in the
-  week 2–3 list in ARCHITECTURE.md.
+- Real-time updates use a 3-second poll inside an SSE stream rather than
+  MongoDB change streams, and the stream is capped at 50 seconds with automatic
+  client reconnect. See ARCHITECTURE.md for why.
+- Attachments are stored in GridFS inside MongoDB rather than object storage.
+  That avoids a second service but consumes cluster storage, which matters on
+  Atlas M0's 512MB. S3-compatible storage with presigned uploads is the upgrade.

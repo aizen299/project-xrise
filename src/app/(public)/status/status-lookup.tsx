@@ -15,6 +15,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { TicketPriority, TicketStatus } from '@/types';
+import { AttachmentList, type AttachmentView } from '@/components/tickets/attachment-list';
 
 type Values = z.input<typeof statusLookupSchema>;
 
@@ -25,6 +26,7 @@ interface PublicStatus {
   priority: TicketPriority;
   createdAt: string;
   latestReply: { body: string; authorName: string; createdAt: string } | null;
+  attachments: AttachmentView[];
 }
 
 function formatWhen(iso: string) {
@@ -153,6 +155,18 @@ export function StatusLookup({ initialTicketId }: { initialTicketId: string }) {
                 <p className="text-sm text-muted-foreground">
                   Submitted {formatWhen(ticket.createdAt)}
                 </p>
+
+                {ticket.attachments.length > 0 ? (
+                  <>
+                    <Separator />
+                    <AttachmentList
+                      attachments={ticket.attachments}
+                      hrefFor={(a) =>
+                        `/api/attachments/${a.id}?ticketId=${encodeURIComponent(ticket.ticketId)}&email=${encodeURIComponent(lastQuery?.email ?? '')}`
+                      }
+                    />
+                  </>
+                ) : null}
 
                 <Separator />
 

@@ -10,6 +10,7 @@ import {
   type AuthUser,
 } from '../../src/server/auth/guards';
 import {
+  countTicketEventsSince,
   countTicketsForUser,
   getTicketForUser,
   listTicketsForUser,
@@ -104,6 +105,27 @@ describe('cross-agent access (REQ-018)', () => {
     await expect(getTicketForUser('not-an-object-id', agentA)).rejects.toMatchObject({
       code: 'NOT_FOUND',
     });
+  });
+});
+
+describe('live update stream scoping', () => {
+  it('lets an agent watch their own ticket', async () => {
+    await expect(countTicketEventsSince(ticketOfA, agentA, new Date(0))).resolves.toBeTypeOf('number');
+  });
+
+  it('refuses to stream another agent\u2019s ticket', async () => {
+    // The SSE endpoint polls through this function, so scope is enforced on
+    // every poll rather than only when the connection opens.
+    await expect(countTicketEventsSince(ticketOfB, agentA, new Date(0))).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+  });
+
+  it('refuses to stream an unassigned ticket for an agent but allows an admin', async () => {
+    await expect(countTicketEventsSince(unassignedTicket, agentA, new Date(0))).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+    await expect(countTicketEventsSince(unassignedTicket, admin, new Date(0))).resolves.toBeTypeOf('number');
   });
 });
 

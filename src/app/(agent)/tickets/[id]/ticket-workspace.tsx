@@ -7,6 +7,8 @@ import { toast } from 'sonner';
 import { PriorityBadge, StatusBadge } from '@/components/tickets/badges';
 import { TICKET_STATUSES, type TicketEventType, type TicketStatus } from '@/types';
 import type { AssignableAgent } from '@/server/services/agent.service';
+import { AttachmentList, type AttachmentView } from '@/components/tickets/attachment-list';
+import { useTicketStream } from '@/hooks/use-ticket-stream';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -41,6 +43,7 @@ export interface ClientTicket {
   assignee: { id: string; name: string } | null;
   createdAt: string;
   events: ClientEvent[];
+  attachments: AttachmentView[];
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -113,6 +116,10 @@ export function TicketWorkspace({
   const [error, setError] = useState<string | null>(null);
   const [drafting, setDrafting] = useState(false);
   const replyRef = useRef<HTMLTextAreaElement>(null);
+
+  useTicketStream(ticket.id, () => {
+    if (!pending) router.refresh();
+  });
 
   const [events, addOptimisticEvent] = useOptimistic<ClientEvent[], ClientEvent>(
     ticket.events,
@@ -305,6 +312,15 @@ export function TicketWorkspace({
           ) : null}
         </span>
       </section>
+
+      {ticket.attachments.length > 0 ? (
+        <div className="animate-rise" style={{ animationDelay: '80ms' }}>
+          <AttachmentList
+            attachments={ticket.attachments}
+            hrefFor={(a) => `/api/attachments/${a.id}`}
+          />
+        </div>
+      ) : null}
 
       <section aria-label="Timeline" className="flex flex-col gap-4">
         <h2 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">

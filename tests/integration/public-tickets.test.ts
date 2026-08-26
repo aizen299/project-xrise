@@ -166,12 +166,18 @@ describe('public status check (REQ-008)', () => {
 
         
     expect(Object.keys(status).sort()).toEqual([
-      'createdAt', 'latestReply', 'priority', 'status', 'subject', 'ticketId',
+      'attachments', 'createdAt', 'latestReply', 'priority', 'status', 'subject', 'ticketId',
     ]);
     const serialised = JSON.stringify(status);
     expect(serialised).not.toContain(agent._id.toString());
     expect(serialised).not.toContain(VALID.customerEmail);
     expect(serialised).not.toContain(VALID.body);
+
+    for (const attachment of status.attachments) {
+      expect(Object.keys(attachment).sort()).toEqual([
+        'contentType', 'filename', 'id', 'size', 'uploadedAt',
+      ]);
+    }
   });
 
   it('surfaces the latest agent reply once one exists', async () => {

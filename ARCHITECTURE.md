@@ -17,27 +17,32 @@ flowchart TB
     PROXY["proxy.ts<br/>edge JWT gate"]
     RSC["Server Components<br/>first paint with data"]
     RH["Route Handlers<br/>/api/*"]
+    SSE["SSE stream<br/>/api/tickets/:id/stream"]
     SVC["Service layer<br/>business logic + transactions"]
     AUTHZ["Authorization<br/>scopeTicketQuery · requireRole"]
     RL["Rate limiter<br/>fixed window"]
   end
 
-  DB[("MongoDB Atlas M0<br/>tickets · ticketevents<br/>users · ratelimits")]
+  DB[("MongoDB Atlas M0<br/>tickets · ticketevents · users<br/>ratelimits · attachments (GridFS)")]
+  LLM["Groq<br/>OpenAI-compatible<br/>reply drafting"]
 
-  PUB -->|"POST /api/tickets<br/>GET /api/tickets/status"| RL
+  PUB -->|"POST /api/tickets (multipart)<br/>GET /api/tickets/status"| RL
   RL --> RH
   APP --> PROXY --> RSC
-  APP -->|"mutations"| RH
+  APP -->|"mutations · downloads"| RH
+  APP -.->|"EventSource"| SSE
+  SSE --> AUTHZ
   RSC --> AUTHZ
   RH --> AUTHZ --> SVC --> DB
+  SVC -->|"draft reply"| LLM
 
-  EXT["Next to add:<br/>object storage for attachments<br/>Redis rate limiting · SSE/Pusher realtime<br/>LLM provider for draft replies<br/>Sentry + log drain"]
+  EXT["Next to add:<br/>object storage for attachments<br/>Redis rate limiting · change streams or pub/sub<br/>Atlas Search · Sentry + log drain"]
   style EXT stroke-dasharray: 5 5
   vercel -.-> EXT
 ```
 
-Everything inside the dashed box exists today. The dotted node is what I would
-add next, in that order.
+Solid nodes exist today, including the SSE stream, GridFS attachment storage and
+the LLM provider. The dashed node is what I would add next, in that order.
 
 ## Data model
 
@@ -47,6 +52,10 @@ append-only and lives beside them.
 **`tickets`** — `ticketId` (public, random), customer name/email, subject, body,
 `status`, `priority`, `assigneeId` (nullable), `lastAgentReply` (denormalised),
 timestamps.
+
+**`attachments.files` / `attachments.chunks`** — GridFS buckets holding ticket
+attachments, with `metadata.ticketId` linking each file to its ticket and
+`metadata.contentType` carrying the validated MIME type.
 
 **`ticketevents`** — `ticketId`, `type` (`created` | `replied` |
 `status_changed` | `reassigned`), `actor` `{ id, name, kind }`, `payload`,
@@ -218,20 +227,21 @@ as a generic 500.
 
 ## Top 3 for week 2–3
 
-1. **Real-time ticket updates.** Agents working the same queue currently need a
-   refresh to see a colleague's reply or reassignment. Server-Sent Events from a
-   Route Handler is the lowest-friction fit for this deployment; WebSockets are
-   not viable on Vercel's serverless runtime.
+1. **Move attachments to object storage.** They currently live in GridFS, which
+   avoided a second service but consumes cluster storage — a real constraint on
+   Atlas M0's 512MB. S3-compatible storage with presigned uploads takes the file
+   bytes off the database and off the application's request path entirely, and
+   adds room for virus scanning before an agent opens anything.
 
-2. **File attachments.** The single most common thing a support customer wants
-   to send is a screenshot. This needs object storage with presigned uploads,
-   MIME and size validation, and virus scanning before an agent opens anything —
-   which is why it is not a small change and did not fit the initial scope.
+2. **Replace the SSE poll with change streams or a pub/sub broker.** The stream
+   currently polls every three seconds, which is one query per watching agent per
+   interval. That is fine for a handful of agents and wasteful at a hundred.
+   MongoDB change streams on a long-lived host, or Pusher/Ably on serverless,
+   removes the polling entirely and cuts update latency to near zero.
 
-3. **An AI drafting assist on the dashboard.** Summarise a ticket and draft a
-   reply from its history, with the agent editing before sending. Value is
-   concentrated in long threads, and keeping a human in the loop keeps the
-   failure mode as a wasted click rather than a wrong answer sent to a customer.
+3. **Cursor pagination and Atlas Search.** `skip`/`limit` degrades with depth and
+   the `$text` index matches only whole stemmed words, so `data` never finds
+   `database`. Both are invisible at seed scale and both bite at 1M tickets.
 
-Close behind: cursor pagination, a CSRF double-submit token to complement
-`SameSite=Lax`, and audit-log retention with export.
+Close behind: a CSRF double-submit token to complement `SameSite=Lax`, and
+audit-log retention with export.

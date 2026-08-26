@@ -3,6 +3,13 @@ import { Ticket, TicketEvent, type TicketDoc } from '../db/models';
 import { isAdmin, scopeTicketQuery, type AuthUser } from '../auth/guards';
 import { notFound } from '../errors';
 import { withTransaction } from '../db/transaction';
+import {
+  assertUploadable,
+  listAttachments,
+  storeAttachment,
+  type AttachmentMeta,
+} from '../db/attachments';
+import { MAX_ATTACHMENTS_PER_TICKET } from '../db/attachments';
 import { generateTicketId } from '../../lib/ticket-id';
 import type {
   CreateTicketInput,
@@ -78,13 +85,31 @@ export async function getTicketForUser(id: string, user: AuthUser): Promise<Tick
 const MAX_TICKET_ID_ATTEMPTS = 3;
 
 
-export async function createTicket(input: CreateTicketInput): Promise<{ ticketId: string }> {
+export interface UploadedFile {
+  name: string;
+  type: string;
+  size: number;
+  buffer: Buffer;
+}
+
+export async function createTicket(
+  input: CreateTicketInput,
+  files: UploadedFile[] = [],
+): Promise<{ ticketId: string }> {
+  if (files.length > MAX_ATTACHMENTS_PER_TICKET) {
+    throw badRequest(`Attach at most ${MAX_ATTACHMENTS_PER_TICKET} files.`);
+  }
+  for (const file of files) assertUploadable(file);
+
   for (let attempt = 1; attempt <= MAX_TICKET_ID_ATTEMPTS; attempt += 1) {
     const ticketId = generateTicketId();
 
     try {
+      let createdId: Types.ObjectId | null = null;
+
       await withTransaction(async (session) => {
         const [ticket] = await Ticket.create([{ ...input, ticketId }], { session });
+        createdId = ticket._id;
         await TicketEvent.create(
           [
             {
@@ -97,6 +122,11 @@ export async function createTicket(input: CreateTicketInput): Promise<{ ticketId
           { session },
         );
       });
+
+      const ticketObjectId = createdId as Types.ObjectId | null;
+      if (ticketObjectId) {
+        for (const file of files) await storeAttachment(ticketObjectId, file);
+      }
 
       return { ticketId };
     } catch (error) {
@@ -120,6 +150,7 @@ export interface PublicTicketStatus {
   priority: TicketPriority;
   createdAt: Date;
   latestReply: { body: string; authorName: string; createdAt: Date } | null;
+  attachments: AttachmentMeta[];
 }
 
 
@@ -149,6 +180,7 @@ export async function getPublicTicketStatus(
           createdAt: ticket.lastAgentReply.createdAt,
         }
       : null,
+    attachments: await listAttachments(ticket._id),
   };
 }
 
@@ -277,6 +309,7 @@ export interface TicketDetail {
   createdAt: Date;
   updatedAt: Date;
   events: TimelineEvent[];
+  attachments: AttachmentMeta[];
 }
 
 function toTimelineEvent(doc: {
@@ -317,11 +350,12 @@ async function resolveAgentName(id: Types.ObjectId | null): Promise<string | nul
 export async function getTicketDetail(id: string, user: AuthUser): Promise<TicketDetail> {
   const ticket = await loadScopedTicket(id, user);
 
-  const [events, assigneeName] = await Promise.all([
+  const [events, assigneeName, attachments] = await Promise.all([
     TicketEvent.find({ ticketId: ticket._id })
       .sort({ createdAt: 1 })
       .lean<Parameters<typeof toTimelineEvent>[0][]>(),
     resolveAgentName(ticket.assigneeId),
+    listAttachments(ticket._id),
   ]);
 
   return {
@@ -340,6 +374,7 @@ export async function getTicketDetail(id: string, user: AuthUser): Promise<Ticke
     createdAt: ticket.createdAt,
     updatedAt: ticket.updatedAt,
     events: events.map(toTimelineEvent),
+    attachments,
   };
 }
 
@@ -450,4 +485,13 @@ export async function reassignTicket(
 
     return toTimelineEvent(event);
   });
+}
+
+export async function countTicketEventsSince(
+  id: string,
+  user: AuthUser,
+  since: Date,
+): Promise<number> {
+  const ticket = await loadScopedTicket(id, user);
+  return TicketEvent.countDocuments({ ticketId: ticket._id, createdAt: { $gt: since } });
 }
