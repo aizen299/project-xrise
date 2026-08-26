@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import { getEnv } from '../env';
 import { logger } from '../logger';
 import { redactErrorMessage } from '../redact';
+import { isLocal } from '../runtime-mode';
 
 /**
  * Serverless-safe connection cache. Each lambda invocation may reuse a warm
@@ -40,7 +41,7 @@ export async function connectToDatabase(
         serverSelectionTimeoutMS: 10_000,
         // Index builds are a deploy-time concern, not a request-time one.
         // Production indexes are applied by `npm run db:indexes`.
-        autoIndex: process.env.NODE_ENV !== 'production',
+        autoIndex: isLocal(),
         ...overrides,
       })
       .then((m) => {

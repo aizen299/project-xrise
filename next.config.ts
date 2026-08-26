@@ -18,7 +18,7 @@ const nextConfig: NextConfig = {
       {
         source: '/:path*',
         headers:
-          process.env.NODE_ENV === 'production'
+          process.env.NODE_ENV?.trim() !== 'development'
             ? [
                 ...securityHeaders,
                 {

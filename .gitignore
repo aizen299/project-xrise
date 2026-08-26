@@ -22,7 +22,7 @@
 /build
 /dist
 
-# env — real secrets never committed, but .env.example MUST be (REQ-033)
+# env 
 .env*
 !.env.example
 
@@ -47,7 +47,3 @@ pnpm-debug.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# local-only working docs (not part of the deliverable)
-CLAUDE.md
-PROJECT_PLAN.md
-*.pdf

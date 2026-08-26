@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import { SESSION_TTL_SECONDS, verifySessionToken, type SessionClaims } from './jwt';
 import { SESSION_COOKIE } from './session-constants';
+import { isLocal } from '../runtime-mode';
 
 export { SESSION_COOKIE };
 
@@ -13,7 +14,7 @@ export { SESSION_COOKIE };
 function baseCookieOptions() {
   return {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: !isLocal(),
     sameSite: 'lax' as const,
     path: '/',
   };

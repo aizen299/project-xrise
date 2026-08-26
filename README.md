@@ -3,7 +3,11 @@
 A minimal helpdesk. Customers submit and track support tickets without an
 account; agents and admins triage, reply, and close them behind JWT auth.
 
-**Live URL:** _not deployed yet — see [Deployment](#deployment)._
+**Live URL:** **https://project-xrise-nine.vercel.app**
+
+Sign in as `agent1@xriseai.com`, `agent2@xriseai.com` or `admin@xriseai.com` —
+all with the password `Password123!`. The two agents see different tickets; the
+admin sees every ticket and can reassign.
 
 ## Stack
 
@@ -285,14 +289,20 @@ CI runs lint, typecheck, tests and build on every push and pull request
 
 ## Deployment
 
-Intended target is **Vercel** (Hobby tier) with **MongoDB Atlas M0**.
+Deployed on **Vercel** (Hobby tier) with **MongoDB Atlas M0**:
+**https://project-xrise-nine.vercel.app**
+
+To deploy your own copy:
 
 1. Import the GitHub repo at [vercel.com/new](https://vercel.com/new).
 2. Add environment variables: `MONGODB_URI`, `JWT_SECRET`, `APP_ORIGIN` (the
    Vercel URL), and optionally `LLM_API_KEY`.
 3. Atlas → **Network Access** → allow `0.0.0.0/0`, since Vercel has no static
    egress range.
-4. After the first deploy, apply indexes and seed:
+4. Do **not** set `NODE_ENV` — Vercel manages it. A blank or wrong value would
+   disable the `Secure` cookie flag and HSTS. The app now fails closed on an
+   unrecognised value, but the variable should simply be absent.
+5. After the first deploy, apply indexes and seed:
 
 ```bash
 npm run db:indexes && npm run db:seed
@@ -303,7 +313,6 @@ cluster when you run them.
 
 ## Known bugs and limitations
 
-- **Not deployed yet.** No live URL.
 - Search uses a MongoDB `$text` index, so it matches whole stemmed words only:
   searching `data` will not match `database`. Atlas Search would fix this
   without changing the query surface.
