@@ -45,6 +45,12 @@ describe('fixed-window rate limiting (REQ-032)', () => {
 
   it('starts a fresh budget once the window rolls over', async () => {
     const shortPolicy = { limit: 1, windowSeconds: 1 };
+    const windowMs = shortPolicy.windowSeconds * 1000;
+
+    const remaining = windowMs - (Date.now() % windowMs);
+    if (remaining < windowMs * 0.6) {
+      await new Promise((resolve) => setTimeout(resolve, remaining + 25));
+    }
 
     expect((await consumeRateLimit('ip:rollover', shortPolicy)).allowed).toBe(true);
     expect((await consumeRateLimit('ip:rollover', shortPolicy)).allowed).toBe(false);

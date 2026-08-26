@@ -1,0 +1,15 @@
+node_modules
+.next
+.git
+.github
+coverage
+tests
+*.log
+.env
+.env.*
+!.env.example
+README.md
+ARCHITECTURE.md
+CLAUDE.md
+PROJECT_PLAN.md
+*.pdf

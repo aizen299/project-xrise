@@ -1,8 +1,8 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useOptimistic, useState, useSyncExternalStore, useTransition } from 'react';
-import { Loader2, MessageSquare, Send, Sparkles, UserCog } from 'lucide-react';
+import { useOptimistic, useRef, useState, useSyncExternalStore, useTransition } from 'react';
+import { Loader2, MessageSquare, Send, Sparkles, UserCog, Wand2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { PriorityBadge, StatusBadge } from '@/components/tickets/badges';
 import { TICKET_STATUSES, type TicketEventType, type TicketStatus } from '@/types';
@@ -100,15 +100,19 @@ export function TicketWorkspace({
   agents,
   canReassign,
   currentUserName,
+  aiEnabled,
 }: {
   ticket: ClientTicket;
   agents: AssignableAgent[];
   canReassign: boolean;
   currentUserName: string;
+  aiEnabled: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [drafting, setDrafting] = useState(false);
+  const replyRef = useRef<HTMLTextAreaElement>(null);
 
   const [events, addOptimisticEvent] = useOptimistic<ClientEvent[], ClientEvent>(
     ticket.events,
@@ -169,6 +173,31 @@ export function TicketWorkspace({
         }),
       'Could not send the reply.',
     );
+  }
+
+  async function draftWithAi() {
+    setDrafting(true);
+    try {
+      const response = await fetch(`/api/tickets/${ticket.id}/draft`, { method: 'POST' });
+      const payload = (await response.json().catch(() => null)) as
+        | { draft?: string; error?: { message?: string } }
+        | null;
+
+      if (!response.ok || !payload?.draft) {
+        toast.error(payload?.error?.message ?? 'Could not draft a reply.');
+        return;
+      }
+
+      if (replyRef.current) {
+        replyRef.current.value = payload.draft;
+        replyRef.current.focus();
+      }
+      toast.success('Draft ready — review before sending');
+    } catch {
+      toast.error('Could not reach the drafting service.');
+    } finally {
+      setDrafting(false);
+    }
   }
 
   function changeStatus(next: TicketStatus) {
@@ -326,14 +355,45 @@ export function TicketWorkspace({
       <Card className="surface">
         <CardContent className="pt-6">
           <form onSubmit={submitReply} className="flex flex-col gap-3">
-            <Label htmlFor="body">Reply to the customer</Label>
+            <div className="flex flex-wrap items-center gap-2">
+              <Label htmlFor="body">Reply to the customer</Label>
+              {aiEnabled ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="ml-auto"
+                  disabled={drafting || pending}
+                  onClick={draftWithAi}
+                >
+                  {drafting ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin" />
+                      Drafting…
+                    </>
+                  ) : (
+                    <>
+                      <Wand2 className="size-4" />
+                      Draft with AI
+                    </>
+                  )}
+                </Button>
+              ) : null}
+            </div>
             <Textarea
               id="body"
               name="body"
+              ref={replyRef}
               rows={4}
               required
               placeholder="Write a reply the customer will see on their status page…"
             />
+            {aiEnabled ? (
+              <p className="text-xs text-muted-foreground">
+                AI drafts are a starting point. Read and edit before sending — the customer sees
+                exactly what you send.
+              </p>
+            ) : null}
             <Button type="submit" disabled={pending} className="self-start">
               {pending ? (
                 <>

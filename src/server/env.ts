@@ -15,6 +15,10 @@ const envSchema = z.object({
   LOG_LEVEL: z
     .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
     .default('info'),
+  LLM_PROVIDER: z.enum(['groq', 'openrouter', 'ollama']).default('groq'),
+  LLM_API_KEY: z.string().optional(),
+  LLM_MODEL: z.string().optional(),
+  LLM_BASE_URL: z.url().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

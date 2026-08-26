@@ -7,6 +7,7 @@ import { connectToDatabase } from '@/server/db/client';
 import { getTicketDetail } from '@/server/services/ticket.service';
 import { listAssignableAgents } from '@/server/services/agent.service';
 import { AppError } from '@/server/errors';
+import { isAiEnabled } from '@/server/ai/provider';
 import { TicketWorkspace, type ClientTicket } from './ticket-workspace';
 
 export const metadata = { title: 'Ticket · XRise Helpdesk' };
@@ -50,6 +51,7 @@ export default async function TicketDetailPage({ params }: PageProps<'/tickets/[
         agents={agents}
         canReassign={session.role === 'admin'}
         currentUserName={session.name}
+        aiEnabled={isAiEnabled()}
       />
     </div>
   );

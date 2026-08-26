@@ -3,11 +3,7 @@
 A minimal helpdesk. Customers submit and track support tickets without an
 account; agents and admins triage, reply, and close them behind JWT auth.
 
-> **Status: Phase 5 of 6 complete** — foundation, agent authentication with
-> role-scoped authorization, the public ticket flow with rate limiting, the
-> agent dashboard, and the ticket detail view with timeline, replies, status
-> changes, admin reassignment and optimistic UI. Remaining: hardening,
-> `ARCHITECTURE.md` and deployment. See "Roadmap".
+**Live URL:** _not deployed yet — see [Deployment](#deployment)._
 
 ## Stack
 
@@ -15,74 +11,44 @@ account; agents and admins triage, reply, and close them behind JWT auth.
 |---|---|
 | Framework | Next.js 16 (App Router) — React frontend and Route Handlers in one deployment |
 | Language | TypeScript |
-| Database | MongoDB via Mongoose |
+| Database | MongoDB Atlas via Mongoose |
 | Auth | JWT in an httpOnly cookie, signed with `jose` |
 | Validation | Zod, shared between server handlers and client forms |
+| UI | shadcn/ui on Radix, Tailwind CSS v4, `next-themes`, Motion |
 | Logging | pino (structured JSON, with redaction) |
 | Tests | Vitest + `mongodb-memory-server` |
+| AI | Groq (OpenAI-compatible); OpenRouter and Ollama also supported |
 
 ## Running locally
 
-**Prerequisites:** Node.js 20.9+ and a MongoDB Atlas cluster (the free M0 tier
-is sufficient).
+**Prerequisites:** Node.js 20.9+ and a MongoDB Atlas cluster (free M0 tier).
 
 ### Setting up MongoDB Atlas
 
 1. Create a free **M0** cluster at [cloud.mongodb.com](https://cloud.mongodb.com).
-2. **Database Access** → add a database user with *Read and write to any
-   database*. Note the password.
-3. **Network Access** → add an IP address. Vercel has no static egress range,
-   so a deployed app needs `0.0.0.0/0`; access is protected by SCRAM
+2. **Database Access** → add a user with *Read and write to any database*.
+3. **Network Access** → add an IP. Vercel has no static egress range, so a
+   deployed app needs `0.0.0.0/0`; the cluster is protected by SCRAM
    credentials rather than by IP.
-4. **Connect → Drivers** → copy the Node.js connection string, then append the
+4. **Connect → Drivers** → copy the Node.js connection string and append the
    database name: `...mongodb.net/xrise-helpdesk?retryWrites=true&w=majority`.
+
+Atlas deployments are replica sets, which this app depends on: ticket creation
+and replies write across two collections in a transaction, and transactions do
+not work against a standalone `mongod`.
 
 **Percent-encode the password** if it contains `@ : / ? # [ ] %` **or `$`**.
 The `$` matters for a non-obvious reason: Next.js runs `dotenv-expand` over
-`.env`, so an unescaped `$` in a value is treated as a variable reference and
-expanded away. The symptom is confusing — `npm run db:check` and
-`npm run db:seed` succeed (they use plain `dotenv`, which does not expand)
-while the dev server fails with `bad auth : authentication failed`. Encoding
-`$` as `%24` fixes it for every loader.
+`.env`, so an unescaped `$` in a value is read as a variable reference and
+silently mangled. The symptom is confusing — `npm run db:check` and
+`npm run db:seed` succeed (they use plain `dotenv`, which does not expand) while
+the dev server fails with `bad auth`. Encode `$` as `%24`.
 
-Atlas deployments are replica sets, which the ticket-reply flow depends on:
-multi-document transactions do not work against a standalone `mongod`.
-
-#### If the dev server reports `bad auth` but `npm run db:check` succeeds
-
-Almost always the `$` expansion problem described above. Percent-encode the
-password.
-
-#### If the connection fails with `querySrv EBADRESP`
-
-The `mongodb+srv://` scheme performs a DNS **SRV** lookup, and some networks —
-phone hotspots and captive/filtering resolvers in particular — return SRV
-responses that Node's bundled resolver rejects, even though `dig` resolves the
-same record fine. The error is a DNS fault, not bad credentials or a missing IP
-allowlist entry.
-
-Confirm it with:
-
-```bash
-node -e "require('dns').resolveSrv('_mongodb._tcp.<cluster>.mongodb.net',(e,r)=>console.log(e?e.code:r.length+' records'))"
-```
-
-The fix is to use Atlas's **standard connection string**, which lists the shard
-hosts directly and performs no SRV lookup:
-
-```
-mongodb://<user>:<password>@host-00:27017,host-01:27017,host-02:27017/xrise-helpdesk?ssl=true&replicaSet=<rs>&authSource=admin&retryWrites=true&w=majority
-```
-
-Atlas provides it under **Connect → Drivers**, by selecting an older Node.js
-driver version (2.2.12 or later). It behaves identically and is immune to the
-resolver problem.
+### Start
 
 ```bash
 npm install
 ```
-
-Copy the environment template and fill it in:
 
 ```bash
 cp .env.example .env
@@ -94,7 +60,7 @@ Generate a signing secret and paste it into `JWT_SECRET`:
 openssl rand -base64 48
 ```
 
-Set `MONGODB_URI` to your Atlas connection string, then confirm it works:
+Set `MONGODB_URI`, then confirm the connection:
 
 ```bash
 npm run db:check
@@ -114,17 +80,39 @@ npm run dev
 
 The app runs at http://localhost:3000.
 
-### Seeded accounts
+### Or with Docker
 
-| Email | Role | Password | Sees |
-|---|---|---|---|
-| `agent1@xriseai.com` | agent | `Password123!` | only tickets assigned to them |
-| `agent2@xriseai.com` | agent | `Password123!` | only tickets assigned to them |
-| `admin@xriseai.com` | admin | `Password123!` | every ticket, and can reassign |
+```bash
+docker compose up --build
+```
 
-Passwords come from `SEED_AGENT_PASSWORD` / `SEED_ADMIN_PASSWORD`. Two agents
-are seeded rather than one so that cross-agent isolation is actually
-demonstrable — with a single agent, a scoping bug is invisible.
+Compose starts MongoDB as a single-node **replica set** (required for
+transactions) and waits for it to be healthy before starting the app. Set
+`JWT_SECRET` in your environment or `.env` first.
+
+The app image is a Next.js standalone build, so it deliberately contains no
+seed script. Seed the container's database from the host instead — port 27017
+is published for exactly this:
+
+```bash
+MONGODB_URI='mongodb://127.0.0.1:27017/xrise-helpdesk?replicaSet=rs0&directConnection=true' npm run db:seed
+```
+
+Stop the stack with `docker compose down`, or `docker compose down -v` to also
+discard the database volume.
+
+## Seeded accounts
+
+All use the password `Password123!`.
+
+| Email | Role | Sees |
+|---|---|---|
+| `agent1@xriseai.com` | agent | only tickets assigned to them (4) |
+| `agent2@xriseai.com` | agent | only tickets assigned to them (4) |
+| `admin@xriseai.com` | admin | every ticket (12), and can reassign |
+
+Two agents are seeded rather than one so cross-agent isolation is actually
+demonstrable — with a single agent a scoping bug is invisible.
 
 ## Environment variables
 
@@ -137,7 +125,10 @@ demonstrable — with a single agent, a scoping bug is invisible.
 | `LOG_LEVEL` | no | pino level, defaults to `info` |
 | `SEED_AGENT_PASSWORD` | no | Password for seeded agents (dev only) |
 | `SEED_ADMIN_PASSWORD` | no | Password for the seeded admin (dev only) |
-| `LLM_PROVIDER` / `LLM_API_KEY` | no | AI bonus feature; unused so far |
+| `LLM_PROVIDER` | no | `groq` \| `openrouter` \| `ollama`. Defaults to `groq` |
+| `LLM_API_KEY` | no | Enables the AI drafting feature. Omit to disable it |
+| `LLM_MODEL` | no | Overrides the provider's default model |
+| `LLM_BASE_URL` | no | Overrides the provider's base URL |
 
 `.env` is git-ignored. `.env.example` is committed and lists every key.
 
@@ -153,13 +144,14 @@ demonstrable — with a single agent, a scoping bug is invisible.
 | `npm test` | Vitest, once |
 | `npm run test:watch` | Vitest, watching |
 | `npm run db:check` | Verify the Atlas connection string |
-| `npm run db:seed` | Reset and seed the database |
+| `npm run db:seed` | Reset and seed the database (destructive) |
 | `npm run db:indexes` | Apply declared indexes (run after a production deploy) |
+| `npm run db:inspect` | Browse tickets and timelines from the terminal |
 
 Run a single test file:
 
 ```bash
-npx vitest run tests/integration/foundation.test.ts
+npx vitest run tests/integration/authorization.test.ts
 ```
 
 Run tests matching a name:
@@ -168,111 +160,130 @@ Run tests matching a name:
 npx vitest run -t "never leaks an unexpected error message"
 ```
 
+## The AI feature
+
+**Provider: Groq Cloud**, using its OpenAI-compatible endpoint with
+`openai/gpt-oss-120b`. Chosen for a genuinely free tier with no card required
+and latency low enough that an agent will actually wait — drafts return in
+under a second.
+
+`gpt-oss` is a reasoning model: it spends tokens thinking before it answers, so
+the client sends `reasoning_effort: 'low'` and a token budget large enough to
+cover both phases. Without that, the whole budget is consumed by reasoning and
+the reply comes back empty. That parameter is only sent to models whose id
+contains `gpt-oss`, so OpenRouter and Ollama are unaffected.
+`LLM_PROVIDER=openrouter` or `ollama` works without code changes, since all three
+speak the same API shape.
+
+On the ticket detail view, **Draft with AI** composes a reply from the ticket and
+its full timeline and drops it into the reply box for the agent to edit. The
+agent always sends it themselves — nothing reaches a customer unreviewed, so a
+bad generation costs a wasted click rather than a wrong answer.
+
+The feature is **optional**. With no `LLM_API_KEY` set the button does not
+render and the endpoint returns a clear message rather than failing obscurely.
+The endpoint is scoped like every other ticket route: an agent cannot draft
+against a ticket they are not assigned, so it cannot be used to read another
+agent's ticket through the model. It is separately rate limited at 20 requests
+per 10 minutes per agent.
+
+Get a free key at [console.groq.com](https://console.groq.com), then set
+`LLM_API_KEY` in `.env`. **Never commit it.**
+
 ## Architecture decisions
 
-Full detail lands in `ARCHITECTURE.md`. The short version:
+Full detail is in [ARCHITECTURE.md](./ARCHITECTURE.md). The short version:
 
 **One Next.js app rather than a separate Express API.** The assignment permits
 Next.js API routes. Keeping them together means one deploy target, no
-cross-origin surface, and Zod schemas that define server validation and infer
-the client's form types from a single declaration.
-
-**`proxy.ts` guards pages, not the API.** Next.js 16 renamed the `middleware`
-convention to `proxy`, and documents that it may run at the CDN edge — so it is
-treated as a fast reject, never the security boundary. It covers `/dashboard`
-and `/tickets/*` only: the API mixes public and protected routes on one path
-(`POST /api/tickets` is the public submission form, `GET /api/tickets` is the
-agent list), so a path-prefix rule there would either block the public form or
-wave the agent list through. Route Handlers re-derive the session themselves.
+cross-origin surface, and Zod schemas that define server validation and infer the
+client's form types from a single declaration.
 
 **Authorization is a data-access concern, not a UI one.** A single
-`scopeTicketQuery(user)` helper returns the Mongo filter for the caller —
-`{}` for an admin, `{ assigneeId: self }` for an agent — and every ticket read
-and write composes it, including the pagination count. Requesting a ticket
-outside your scope returns 404, not 403, so IDs cannot be probed for existence.
+`scopeTicketQuery(user)` returns the Mongo filter for the caller — `{}` for an
+admin, `{ assigneeId: self }` for an agent — and every ticket read and write
+composes it, **including the pagination count**. The filter is spread last, so a
+caller-supplied filter can never widen it. Out-of-scope access returns 404, not
+403, so ticket IDs cannot be probed for existence.
 
-**Rate limiting is stored in MongoDB, not in memory.** Serverless instances do
-not share memory, so an in-process counter is bypassed by landing on a cold
-container. A TTL-indexed collection keeps the window shared and self-reaping.
-Budgets are consumed *before* validation, so malformed floods cost the caller
-too, and each entry point has its own budget: ticket submission (10 per 10
-min), status lookup (30 per 10 min) and login (10 per 15 min). A 429 always
-carries `Retry-After`.
+**`proxy.ts` guards pages, not the API.** Next.js 16 renamed `middleware` to
+`proxy` and documents that it may run at the CDN edge, so it is a fast reject and
+never the security boundary. It covers `/dashboard` and `/tickets/*` only: the
+API mixes public and protected routes on one path (`POST /api/tickets` is the
+public form, `GET /api/tickets` is the agent list).
 
-**Caller identity for rate limiting comes from `x-forwarded-for`.** That header
-is only trustworthy behind a proxy that overwrites it — true on Vercel, not
-true of a naked origin, where a caller could rotate the value to evade the
-limit. Local development has no such header, so every caller shares one bucket:
-the safe direction to fail.
+**Rate limiting lives in MongoDB, not in memory.** Serverless instances do not
+share memory, so an in-process counter is bypassed by landing on a cold
+container. Budgets are consumed *before* validation so malformed floods also
+cost the caller. A 429 always carries `Retry-After`.
 
 **The timeline is a separate append-only collection, but the latest agent reply
 is denormalised onto the ticket.** Event history is unbounded and would grow a
-ticket document toward the 16MB cap. Normalising it would, however, force a
-second query on the public status check — the only unauthenticated endpoint. So
-that one derived field is copied back, written in the same transaction.
+ticket document toward the 16MB cap. Normalising alone would force a second query
+on the public status check — the only unauthenticated endpoint — so that one
+derived field is copied back inside the same transaction.
 
-**The URL is the source of truth for dashboard state, and there is no client
-cache library.** Filters, search and page number live in the query string, so a
-view is shareable, bookmarkable and correct under the back button, and the
-Server Component can read them directly. Adding TanStack Query (or Redux, or
-Zustand) would introduce a second copy of state that the URL already holds —
-the "library because it exists" trap the assignment's wording guards against.
-Client state is limited to what is genuinely local: form fields via
-`react-hook-form`, and `useTransition` for pending navigation feedback.
+**The URL is the source of truth for dashboard state.** Filters, search and page
+live in the query string, so views are shareable and back-button correct, and the
+Server Component reads them directly. No client cache library — it would be a
+second copy of state the URL already holds.
 
-**Optimistic UI is limited to replies and status changes.** Both are
-single-field, instantly reversible actions where the perceived latency is worth
-removing. A failed request restores the previous value and surfaces the error.
-Reassignment is deliberately not optimistic: guessing wrong about who owns a
-ticket is more confusing than a brief wait.
+**Ticket IDs are random, not sequential** (31^10 combinations, no ambiguous
+characters). The status endpoint is unauthenticated; a sequential ID plus an
+email would let anyone walk the ticket table.
 
-**Timestamps render as UTC on the server and switch to local time after
-hydration**, via `useSyncExternalStore` with a server snapshot. Calling
-`toLocaleString()` directly inside a Client Component produces different text on
-server and client whenever their time zones differ, and React responds by
-discarding the entire subtree — which silently leaves the page non-interactive.
+## Testing
 
-**Ticket IDs are random, not sequential.** The status-check endpoint is
-unauthenticated; a sequential ID plus a customer email would let anyone walk
-the ticket table.
+```bash
+npm test
+```
 
-## Roadmap
+130 tests. The highest-value ones are in
+`tests/integration/authorization.test.ts`: cross-agent denial by direct ID,
+scoped pagination counts, and the assertion that a caller-supplied filter cannot
+widen scope. Two tests run `.explain()` and assert the dashboard query uses
+`IXSCAN` rather than `COLLSCAN`.
 
-| Phase | Scope | Status |
-|---|---|---|
-| 1 | Foundation: models, indexes, errors, logging, seed, test harness | **done** |
-| 2 | JWT auth, role guards, `scopeTicketQuery` + its tests | **done** |
-| 3 | Public ticket submission and status check, rate limiting | **done** |
-| 4 | Agent dashboard: pagination, filters, server-side search | **done** |
-| 5 | Ticket detail: timeline, reply, status change, admin reassign | **done** |
-| 6 | Hardening, `ARCHITECTURE.md`, deployment, stretch goals | not started |
+CI runs lint, typecheck, tests and build on every push and pull request
+(`.github/workflows/ci.yml`).
+
+## Deployment
+
+Intended target is **Vercel** (Hobby tier) with **MongoDB Atlas M0**.
+
+1. Import the GitHub repo at [vercel.com/new](https://vercel.com/new).
+2. Add environment variables: `MONGODB_URI`, `JWT_SECRET`, `APP_ORIGIN` (the
+   Vercel URL), and optionally `LLM_API_KEY`.
+3. Atlas → **Network Access** → allow `0.0.0.0/0`, since Vercel has no static
+   egress range.
+4. After the first deploy, apply indexes and seed:
+
+```bash
+npm run db:indexes && npm run db:seed
+```
+
+Both read `MONGODB_URI` from your local `.env`, so point it at the production
+cluster when you run them.
 
 ## Known bugs and limitations
 
-- Not deployed yet; no live URL.
-- No CSRF token. `SameSite=Lax` plus JSON-only mutating endpoints covers the
-  realistic cases at this scale; a double-submit token is the documented
-  upgrade.
-- MongoDB `$text` search has no partial or prefix matching — searching `data`
-  will not match `database`. Noted now because it constrains Phase 4.
-- `npm run db:seed` is destructive: it wipes users, tickets and events.
-- Ticket detail, replies, status changes and admin reassignment are not
-  implemented; ticket rows link to a route that does not exist yet.
+- **Not deployed yet.** No live URL.
 - Search uses a MongoDB `$text` index, so it matches whole stemmed words only:
   searching `data` will not match `database`. Atlas Search would fix this
   without changing the query surface.
 - Pagination uses `skip`/`limit`, which degrades on deep pages. Fine at this
   scale; cursor pagination is the documented upgrade.
-- **No route-level `loading.tsx` skeletons.** On Next.js 16.3.3 with Turbopack,
-  adding a `loading.tsx` to any route in this project leaves that route's entire
-  page subtree unhydrated — server HTML renders, but no event handlers attach,
-  so forms fall back to native submission. Reproduced on both a public and an
-  authenticated route, in `next dev` and in a production `next build`, and with
-  a `loading.tsx` containing nothing but a `<p>`. Pending feedback therefore
-  comes from `useTransition` ("Updating…", "Saving…") and inline states instead.
-  Worth re-testing on a later Next release.
 - Fixed-window rate limiting can admit up to 2x the limit across a window
-  boundary. Acceptable at this scale; a sliding window in Redis is the upgrade.
-- The public status check identifies a customer by ticket ID plus email, which
-  is a bearer-style claim rather than authentication. Ticket IDs are therefore
-  random (31^10 combinations) and the endpoint is rate limited.
+  boundary. A sliding window in Redis is the upgrade.
+- Rate limiting identifies callers by `x-forwarded-for`, which is only
+  trustworthy behind a proxy that overwrites it — true on Vercel, not true of a
+  naked origin. Local development has no such header, so all callers share one
+  bucket.
+- No CSRF token. `SameSite=Lax` plus JSON-only mutating endpoints covers the
+  realistic cases at this scale; a double-submit token is the documented upgrade.
+- The public status check identifies a customer by ticket ID plus email, which is
+  a bearer-style claim rather than authentication. IDs are therefore random and
+  the endpoint is rate limited.
+- `npm run db:seed` is destructive: it wipes users, tickets and events.
+- Real-time updates and file attachments are not implemented — both are in the
+  week 2–3 list in ARCHITECTURE.md.

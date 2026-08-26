@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "db:seed": "tsx scripts/seed.ts",
     "db:indexes": "tsx scripts/sync-indexes.ts",
-    "db:check": "tsx scripts/check-db.ts"
+    "db:check": "tsx scripts/check-db.ts",
+    "db:inspect": "tsx scripts/inspect-db.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
