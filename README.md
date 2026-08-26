@@ -39,16 +39,7 @@ admin sees every ticket and can reassign.
 4. **Connect → Drivers** → copy the Node.js connection string and append the
    database name: `...mongodb.net/xrise-helpdesk?retryWrites=true&w=majority`.
 
-Atlas deployments are replica sets, which this app depends on: ticket creation
-and replies write across two collections in a transaction, and transactions do
-not work against a standalone `mongod`.
 
-**Percent-encode the password** if it contains `@ : / ? # [ ] %` **or `$`**.
-The `$` matters for a non-obvious reason: Next.js runs `dotenv-expand` over
-`.env`, so an unescaped `$` in a value is read as a variable reference and
-silently mangled. The symptom is confusing — `npm run db:check` and
-`npm run db:seed` succeed (they use plain `dotenv`, which does not expand) while
-the dev server fails with `bad auth`. Encode `$` as `%24`.
 
 ### Start
 
@@ -117,26 +108,7 @@ All use the password `Password123!`.
 | `agent2@xriseai.com` | agent | only tickets assigned to them (4) |
 | `admin@xriseai.com` | admin | every ticket (12), and can reassign |
 
-Two agents are seeded rather than one so cross-agent isolation is actually
-demonstrable — with a single agent a scoping bug is invisible.
 
-## Environment variables
-
-| Variable | Required | Description |
-|---|---|---|
-| `MONGODB_URI` | yes | MongoDB connection string |
-| `JWT_SECRET` | yes | Signing secret, minimum 32 characters |
-| `APP_ORIGIN` | no | Canonical origin. Declared for CORS and absolute-URL use; defaults to `http://localhost:3000` and is not read at runtime yet |
-| `NODE_ENV` | no | `development` \| `test` \| `production` |
-| `LOG_LEVEL` | no | pino level, defaults to `info` |
-| `SEED_AGENT_PASSWORD` | no | Password for seeded agents (dev only) |
-| `SEED_ADMIN_PASSWORD` | no | Password for the seeded admin (dev only) |
-| `LLM_PROVIDER` | no | `groq` \| `openrouter` \| `ollama`. Defaults to `groq` |
-| `LLM_API_KEY` | no | Enables the AI drafting feature. Omit to disable it |
-| `LLM_MODEL` | no | Overrides the provider's default model |
-| `LLM_BASE_URL` | no | Overrides the provider's base URL |
-
-`.env` is git-ignored. `.env.example` is committed and lists every key.
 
 ## Scripts
 
@@ -166,7 +138,7 @@ Run tests matching a name:
 npx vitest run -t "never leaks an unexpected error message"
 ```
 
-## The AI feature
+## AI feature
 
 **Provider: Groq Cloud**, using its OpenAI-compatible endpoint with
 `openai/gpt-oss-120b`. Chosen for a genuinely free tier with no card required
@@ -185,16 +157,6 @@ On the ticket detail view, **Draft with AI** composes a reply from the ticket an
 its full timeline and drops it into the reply box for the agent to edit. The
 agent always sends it themselves — nothing reaches a customer unreviewed, so a
 bad generation costs a wasted click rather than a wrong answer.
-
-The feature is **optional**. With no `LLM_API_KEY` set the button does not
-render and the endpoint returns a clear message rather than failing obscurely.
-The endpoint is scoped like every other ticket route: an agent cannot draft
-against a ticket they are not assigned, so it cannot be used to read another
-agent's ticket through the model. It is separately rate limited at 20 requests
-per 10 minutes per agent.
-
-Get a free key at [console.groq.com](https://console.groq.com), then set
-`LLM_API_KEY` in `.env`. **Never commit it.**
 
 ## Real-time updates
 
@@ -232,45 +194,7 @@ matching ticket ID and email. Anything else is a 404.
 
 ## Architecture decisions
 
-Full detail is in [ARCHITECTURE.md](./ARCHITECTURE.md). The short version:
-
-**One Next.js app rather than a separate Express API.** The assignment permits
-Next.js API routes. Keeping them together means one deploy target, no
-cross-origin surface, and Zod schemas that define server validation and infer the
-client's form types from a single declaration.
-
-**Authorization is a data-access concern, not a UI one.** A single
-`scopeTicketQuery(user)` returns the Mongo filter for the caller — `{}` for an
-admin, `{ assigneeId: self }` for an agent — and every ticket read and write
-composes it, **including the pagination count**. The filter is spread last, so a
-caller-supplied filter can never widen it. Out-of-scope access returns 404, not
-403, so ticket IDs cannot be probed for existence.
-
-**`proxy.ts` guards pages, not the API.** Next.js 16 renamed `middleware` to
-`proxy` and documents that it may run at the CDN edge, so it is a fast reject and
-never the security boundary. It covers `/dashboard` and `/tickets/*` only: the
-API mixes public and protected routes on one path (`POST /api/tickets` is the
-public form, `GET /api/tickets` is the agent list).
-
-**Rate limiting lives in MongoDB, not in memory.** Serverless instances do not
-share memory, so an in-process counter is bypassed by landing on a cold
-container. Budgets are consumed *before* validation so malformed floods also
-cost the caller. A 429 always carries `Retry-After`.
-
-**The timeline is a separate append-only collection, but the latest agent reply
-is denormalised onto the ticket.** Event history is unbounded and would grow a
-ticket document toward the 16MB cap. Normalising alone would force a second query
-on the public status check — the only unauthenticated endpoint — so that one
-derived field is copied back inside the same transaction.
-
-**The URL is the source of truth for dashboard state.** Filters, search and page
-live in the query string, so views are shareable and back-button correct, and the
-Server Component reads them directly. No client cache library — it would be a
-second copy of state the URL already holds.
-
-**Ticket IDs are random, not sequential** (31^10 combinations, no ambiguous
-characters). The status endpoint is unauthenticated; a sequential ID plus an
-email would let anyone walk the ticket table.
+Full detail is in [ARCHITECTURE.md](./ARCHITECTURE.md). 
 
 ## Testing
 
@@ -299,10 +223,6 @@ To deploy your own copy:
    Vercel URL), and optionally `LLM_API_KEY`.
 3. Atlas → **Network Access** → allow `0.0.0.0/0`, since Vercel has no static
    egress range.
-4. Do **not** set `NODE_ENV` — Vercel manages it. A blank or wrong value would
-   disable the `Secure` cookie flag and HSTS. The app now fails closed on an
-   unrecognised value, but the variable should simply be absent.
-5. After the first deploy, apply indexes and seed:
 
 ```bash
 npm run db:indexes && npm run db:seed
