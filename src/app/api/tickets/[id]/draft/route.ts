@@ -7,6 +7,7 @@ import { draftReply } from '@/server/services/ai.service';
 import { enforceRateLimit } from '@/server/ratelimit';
 
 export const runtime = 'nodejs';
+export const maxDuration = 30;
 
 export const POST = route<RouteContext<'/api/tickets/[id]/draft'>>(async (_request, context) => {
   await connectToDatabase();

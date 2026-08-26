@@ -7,6 +7,7 @@ import { toErrorResponse } from '@/server/errors';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 const POLL_INTERVAL_MS = 3_000;
 const STREAM_LIFETIME_MS = 50_000;

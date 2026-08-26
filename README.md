@@ -122,7 +122,7 @@ demonstrable — with a single agent a scoping bug is invisible.
 |---|---|---|
 | `MONGODB_URI` | yes | MongoDB connection string |
 | `JWT_SECRET` | yes | Signing secret, minimum 32 characters |
-| `APP_ORIGIN` | yes | Canonical origin; used for cookie scope and absolute URLs |
+| `APP_ORIGIN` | no | Canonical origin. Declared for CORS and absolute-URL use; defaults to `http://localhost:3000` and is not read at runtime yet |
 | `NODE_ENV` | no | `development` \| `test` \| `production` |
 | `LOG_LEVEL` | no | pino level, defaults to `info` |
 | `SEED_AGENT_PASSWORD` | no | Password for seeded agents (dev only) |
