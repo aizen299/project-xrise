@@ -2,9 +2,22 @@
 
 import { useRouter } from 'next/navigation';
 import { useOptimistic, useState, useSyncExternalStore, useTransition } from 'react';
+import { Loader2, MessageSquare, Send, Sparkles, UserCog } from 'lucide-react';
+import { toast } from 'sonner';
 import { PriorityBadge, StatusBadge } from '@/components/tickets/badges';
 import { TICKET_STATUSES, type TicketEventType, type TicketStatus } from '@/types';
 import type { AssignableAgent } from '@/server/services/agent.service';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 export interface ClientEvent {
   id: string;
@@ -30,9 +43,6 @@ export interface ClientTicket {
   events: ClientEvent[];
 }
 
-const control =
-  'rounded-md border border-black/15 bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-blue-600 dark:border-white/20';
-
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 function formatUtc(iso: string) {
@@ -52,6 +62,20 @@ function TimeStamp({ iso }: { iso: string }) {
 
   return <time dateTime={iso}>{label}</time>;
 }
+
+const EVENT_ICON: Record<TicketEventType, typeof Sparkles> = {
+  created: Sparkles,
+  replied: MessageSquare,
+  status_changed: Loader2,
+  reassigned: UserCog,
+};
+
+const EVENT_TONE: Record<TicketEventType, string> = {
+  created: 'bg-primary/12 text-primary ring-primary/20',
+  replied: 'bg-status-open-soft text-status-open ring-status-open/20',
+  status_changed: 'bg-status-pending-soft text-status-pending ring-status-pending/20',
+  reassigned: 'bg-accent text-accent-foreground ring-border',
+};
 
 function describe(event: ClientEvent) {
   const from = String(event.payload.from ?? '');
@@ -105,12 +129,15 @@ export function TicketWorkspace({
           const payload = (await response.json().catch(() => null)) as
             | { error?: { message?: string } }
             | null;
-          setError(payload?.error?.message ?? fallbackMessage);
+          const message = payload?.error?.message ?? fallbackMessage;
+          setError(message);
+          toast.error(message);
           return;
         }
         router.refresh();
       } catch {
         setError(fallbackMessage);
+        toast.error(fallbackMessage);
       }
     });
   }
@@ -173,117 +200,156 @@ export function TicketWorkspace({
 
   return (
     <div className="flex flex-col gap-6">
-      <div aria-live="assertive">
-        {error ? (
-          <p
-            role="alert"
-            className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200"
-          >
-            {error}
-          </p>
-        ) : null}
+      <div aria-live="assertive" className="sr-only">
+        {error}
       </div>
 
-      <header className="flex flex-col gap-3">
-        <p className="font-mono text-xs uppercase tracking-wide opacity-60">{ticket.ticketId}</p>
-        <h1 className="text-2xl font-semibold tracking-tight">{ticket.subject}</h1>
+      <header className="animate-rise flex flex-col gap-3">
+        <p className="font-mono text-xs tracking-wider text-muted-foreground">{ticket.ticketId}</p>
+        <h1 className="text-2xl font-semibold tracking-tight text-balance">{ticket.subject}</h1>
         <div className="flex flex-wrap items-center gap-2">
           <StatusBadge status={status} />
           <PriorityBadge priority={ticket.priority} />
-          <span className="text-sm opacity-70">
+          <span className="text-sm text-muted-foreground">
             {ticket.customerName} · {ticket.customerEmail}
           </span>
         </div>
       </header>
 
-      <section aria-label="Actions" className="flex flex-wrap items-end gap-4 rounded-lg border border-black/10 p-4 dark:border-white/15">
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="status" className="text-sm font-medium">Status</label>
-          <select
-            id="status"
-            className={control}
-            value={status}
-            disabled={pending}
-            onChange={(event) => changeStatus(event.target.value as TicketStatus)}
-          >
-            {TICKET_STATUSES.map((option) => (
-              <option key={option} value={option}>{option}</option>
-            ))}
-          </select>
+      <section
+        aria-label="Actions"
+        className="animate-rise glass flex flex-wrap items-end gap-5 rounded-xl p-4"
+        style={{ animationDelay: '50ms' }}
+      >
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="status">Status</Label>
+          <Select value={status} onValueChange={(v) => changeStatus(v as TicketStatus)} disabled={pending}>
+            <SelectTrigger id="status" className="w-40 capitalize">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {TICKET_STATUSES.map((option) => (
+                <SelectItem key={option} value={option} className="capitalize">
+                  {option}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         {canReassign ? (
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="assignee" className="text-sm font-medium">Assignee</label>
-            <select
-              id="assignee"
-              className={control}
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="assignee">Assignee</Label>
+            <Select
               value={ticket.assignee?.id ?? 'unassigned'}
+              onValueChange={reassign}
               disabled={pending}
-              onChange={(event) => reassign(event.target.value)}
             >
-              <option value="unassigned">Unassigned</option>
-              {agents.map((agent) => (
-                <option key={agent.id} value={agent.id}>{agent.name}</option>
-              ))}
-            </select>
+              <SelectTrigger id="assignee" className="w-48">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="unassigned">Unassigned</SelectItem>
+                {agents.map((agent) => (
+                  <SelectItem key={agent.id} value={agent.id}>
+                    {agent.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         ) : (
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-2">
             <span className="text-sm font-medium">Assignee</span>
-            <p className="px-1 py-2 text-sm opacity-70">{ticket.assignee?.name ?? 'Unassigned'}</p>
+            <p className="py-2 text-sm text-muted-foreground">
+              {ticket.assignee?.name ?? 'Unassigned'}
+            </p>
           </div>
         )}
 
-        <span aria-live="polite" className="ml-auto text-sm opacity-70">
-          {pending ? 'Saving…' : ''}
+        <span aria-live="polite" className="ml-auto flex items-center gap-2 text-sm text-muted-foreground">
+          {pending ? (
+            <>
+              <Loader2 className="size-4 animate-spin" />
+              Saving…
+            </>
+          ) : null}
         </span>
       </section>
 
       <section aria-label="Timeline" className="flex flex-col gap-4">
-        <h2 className="text-sm font-medium uppercase tracking-wide opacity-70">Timeline</h2>
-        <ol className="flex flex-col gap-4">
-          {events.map((event) => (
-            <li
-              key={event.id}
-              className={`rounded-lg border p-4 ${
-                event.pending
-                  ? 'border-dashed border-black/20 opacity-60 dark:border-white/25'
-                  : 'border-black/10 dark:border-white/15'
-              }`}
-            >
-              <p className="text-sm font-medium">{describe(event)}</p>
-              {event.type === 'created' ? (
-                <p className="mt-2 text-sm whitespace-pre-wrap">{ticket.body}</p>
-              ) : null}
-              {event.type === 'replied' ? (
-                <p className="mt-2 text-sm whitespace-pre-wrap">{String(event.payload.body ?? '')}</p>
-              ) : null}
-              <p className="mt-2 text-xs opacity-60">
-                {event.pending ? 'Sending…' : <TimeStamp iso={event.createdAt} />}
-              </p>
-            </li>
-          ))}
+        <h2 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          Timeline
+        </h2>
+
+        <ol className="relative flex flex-col gap-4 before:absolute before:bottom-4 before:left-[15px] before:top-4 before:w-px before:bg-border">
+          {events.map((event, index) => {
+            const Icon = EVENT_ICON[event.type];
+            return (
+              <li
+                key={event.id}
+                className="animate-rise relative flex gap-4"
+                style={{ animationDelay: `${Math.min(index, 10) * 40}ms` }}
+              >
+                <span
+                  className={`z-10 mt-1 grid size-8 shrink-0 place-items-center rounded-full ring-4 ring-background ${EVENT_TONE[event.type]}`}
+                >
+                  <Icon className="size-4" />
+                </span>
+
+                <Card
+                  className={`surface flex-1 ${event.pending ? 'animate-pulse border-dashed opacity-70' : ''}`}
+                >
+                  <CardContent className="py-4">
+                    <p className="text-sm font-medium">{describe(event)}</p>
+                    {event.type === 'created' ? (
+                      <p className="mt-2 text-sm whitespace-pre-wrap text-muted-foreground">
+                        {ticket.body}
+                      </p>
+                    ) : null}
+                    {event.type === 'replied' ? (
+                      <p className="mt-2 text-sm whitespace-pre-wrap">
+                        {String(event.payload.body ?? '')}
+                      </p>
+                    ) : null}
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      {event.pending ? 'Sending…' : <TimeStamp iso={event.createdAt} />}
+                    </p>
+                  </CardContent>
+                </Card>
+              </li>
+            );
+          })}
         </ol>
       </section>
 
-      <form onSubmit={submitReply} className="flex flex-col gap-3">
-        <label htmlFor="body" className="text-sm font-medium">Reply to the customer</label>
-        <textarea
-          id="body"
-          name="body"
-          rows={4}
-          required
-          className={`${control} resize-y`}
-        />
-        <button
-          type="submit"
-          disabled={pending}
-          className="self-start rounded-md bg-foreground px-5 py-2.5 text-sm font-medium text-background transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 disabled:opacity-60"
-        >
-          {pending ? 'Sending…' : 'Send reply'}
-        </button>
-      </form>
+      <Card className="surface">
+        <CardContent className="pt-6">
+          <form onSubmit={submitReply} className="flex flex-col gap-3">
+            <Label htmlFor="body">Reply to the customer</Label>
+            <Textarea
+              id="body"
+              name="body"
+              rows={4}
+              required
+              placeholder="Write a reply the customer will see on their status page…"
+            />
+            <Button type="submit" disabled={pending} className="self-start">
+              {pending ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  Sending…
+                </>
+              ) : (
+                <>
+                  <Send className="size-4" />
+                  Send reply
+                </>
+              )}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -4,8 +4,12 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useState } from 'react';
+import { AlertCircle, Loader2 } from 'lucide-react';
 import type { z } from 'zod';
 import { loginSchema } from '@/server/validation/schemas';
+import { Field } from '@/components/common/field';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 type LoginFormValues = z.input<typeof loginSchema>;
 
@@ -50,63 +54,50 @@ export function LoginForm({ next }: { next: string }) {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-5">
-      {/* Announced by screen readers the moment a sign-in attempt fails. */}
       <div aria-live="polite" role="status">
         {formError ? (
-          <p className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
-            {formError}
-          </p>
+          <div className="animate-pop flex items-start gap-2.5 rounded-lg border border-destructive/30 bg-destructive/8 px-3.5 py-3">
+            <AlertCircle className="mt-0.5 size-4 shrink-0 text-destructive" />
+            <p className="text-sm text-destructive">{formError}</p>
+          </div>
         ) : null}
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor="email" className="text-sm font-medium">
-          Email
-        </label>
-        <input
+      <Field htmlFor="email" label="Email" error={errors.email?.message}>
+        <Input
           id="email"
           type="email"
           autoComplete="username"
           autoFocus
+          placeholder="agent1@xriseai.com"
           aria-invalid={errors.email ? true : undefined}
           aria-describedby={errors.email ? 'email-error' : undefined}
-          className="rounded-md border border-black/15 bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-blue-600 aria-invalid:border-red-500 dark:border-white/20"
           {...register('email')}
         />
-        {errors.email ? (
-          <p id="email-error" className="text-sm text-red-700 dark:text-red-300">
-            {errors.email.message}
-          </p>
-        ) : null}
-      </div>
+      </Field>
 
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor="password" className="text-sm font-medium">
-          Password
-        </label>
-        <input
+      <Field htmlFor="password" label="Password" error={errors.password?.message}>
+        <Input
           id="password"
           type="password"
           autoComplete="current-password"
+          placeholder="••••••••"
           aria-invalid={errors.password ? true : undefined}
           aria-describedby={errors.password ? 'password-error' : undefined}
-          className="rounded-md border border-black/15 bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-blue-600 aria-invalid:border-red-500 dark:border-white/20"
           {...register('password')}
         />
-        {errors.password ? (
-          <p id="password-error" className="text-sm text-red-700 dark:text-red-300">
-            {errors.password.message}
-          </p>
-        ) : null}
-      </div>
+      </Field>
 
-      <button
-        type="submit"
-        disabled={isSubmitting}
-        className="mt-1 rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 disabled:opacity-60"
-      >
-        {isSubmitting ? 'Signing in…' : 'Sign in'}
-      </button>
+      <Button type="submit" disabled={isSubmitting} className="mt-1 w-full">
+        {isSubmitting ? (
+          <>
+            <Loader2 className="size-4 animate-spin" />
+            Signing in…
+          </>
+        ) : (
+          'Sign in'
+        )}
+      </Button>
     </form>
   );
 }

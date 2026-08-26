@@ -2,23 +2,32 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { AlertCircle, Loader2, Send } from 'lucide-react';
 import type { z } from 'zod';
 import { createTicketSchema } from '@/server/validation/schemas';
 import { TICKET_PRIORITIES } from '@/types';
+import { Field } from '@/components/common/field';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 type Values = z.input<typeof createTicketSchema>;
 
 const PRIORITY_LABEL: Record<(typeof TICKET_PRIORITIES)[number], string> = {
   low: 'Low — a question or minor annoyance',
-  medium: 'Medium — something is harder than it should be',
+  medium: 'Medium — harder than it should be',
   high: 'High — an important workflow is blocked',
   urgent: 'Urgent — the service is unusable',
 };
-
-const field =
-  'w-full rounded-md border border-black/15 bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-blue-600 aria-invalid:border-red-500 dark:border-white/20';
 
 export function SubmitForm() {
   const router = useRouter();
@@ -26,12 +35,19 @@ export function SubmitForm() {
 
   const {
     register,
+    control,
     handleSubmit,
     setFocus,
     formState: { errors, isSubmitting },
   } = useForm<Values>({
     resolver: zodResolver(createTicketSchema),
-    defaultValues: { customerName: '', customerEmail: '', subject: '', body: '', priority: 'medium' },
+    defaultValues: {
+      customerName: '',
+      customerEmail: '',
+      subject: '',
+      body: '',
+      priority: 'medium',
+    },
   });
 
   async function onSubmit(values: Values) {
@@ -59,87 +75,101 @@ export function SubmitForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-5">
+    <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-6">
       <div aria-live="polite" role="status">
         {formError ? (
-          <p className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
-            {formError}
-          </p>
+          <div className="animate-pop flex items-start gap-2.5 rounded-lg border border-destructive/30 bg-destructive/8 px-3.5 py-3">
+            <AlertCircle className="mt-0.5 size-4 shrink-0 text-destructive" />
+            <p className="text-sm text-destructive">{formError}</p>
+          </div>
         ) : null}
       </div>
 
-      <div className="grid gap-5 sm:grid-cols-2">
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="customerName" className="text-sm font-medium">Your name</label>
-          <input
-            id="customerName" autoComplete="name" className={field}
+      <div className="grid gap-6 sm:grid-cols-2">
+        <Field htmlFor="customerName" label="Your name" error={errors.customerName?.message}>
+          <Input
+            id="customerName"
+            autoComplete="name"
+            placeholder="Jordan Ellis"
             aria-invalid={errors.customerName ? true : undefined}
             aria-describedby={errors.customerName ? 'customerName-error' : undefined}
             {...register('customerName')}
           />
-          {errors.customerName ? (
-            <p id="customerName-error" className="text-sm text-red-700 dark:text-red-300">{errors.customerName.message}</p>
-          ) : null}
-        </div>
+        </Field>
 
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="customerEmail" className="text-sm font-medium">Email</label>
-          <input
-            id="customerEmail" type="email" autoComplete="email" className={field}
+        <Field
+          htmlFor="customerEmail"
+          label="Email"
+          error={errors.customerEmail?.message}
+          hint="You will need this to check the ticket later."
+        >
+          <Input
+            id="customerEmail"
+            type="email"
+            autoComplete="email"
+            placeholder="you@company.com"
             aria-invalid={errors.customerEmail ? true : undefined}
             aria-describedby={errors.customerEmail ? 'customerEmail-error' : 'customerEmail-hint'}
             {...register('customerEmail')}
           />
-          {errors.customerEmail ? (
-            <p id="customerEmail-error" className="text-sm text-red-700 dark:text-red-300">{errors.customerEmail.message}</p>
-          ) : (
-            <p id="customerEmail-hint" className="text-xs opacity-60">You will need this to check the ticket later.</p>
-          )}
-        </div>
+        </Field>
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor="subject" className="text-sm font-medium">Subject</label>
-        <input
-          id="subject" className={field}
+      <Field htmlFor="subject" label="Subject" error={errors.subject?.message}>
+        <Input
+          id="subject"
+          placeholder="Short summary of the problem"
           aria-invalid={errors.subject ? true : undefined}
           aria-describedby={errors.subject ? 'subject-error' : undefined}
           {...register('subject')}
         />
-        {errors.subject ? (
-          <p id="subject-error" className="text-sm text-red-700 dark:text-red-300">{errors.subject.message}</p>
-        ) : null}
-      </div>
+      </Field>
 
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor="body" className="text-sm font-medium">What is happening?</label>
-        <textarea
-          id="body" rows={6} className={`${field} resize-y`}
+      <Field htmlFor="body" label="What is happening?" error={errors.body?.message}>
+        <Textarea
+          id="body"
+          rows={6}
+          placeholder="Include what you expected, what happened instead, and anything you already tried."
           aria-invalid={errors.body ? true : undefined}
           aria-describedby={errors.body ? 'body-error' : undefined}
           {...register('body')}
         />
-        {errors.body ? (
-          <p id="body-error" className="text-sm text-red-700 dark:text-red-300">{errors.body.message}</p>
-        ) : null}
-      </div>
+      </Field>
 
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor="priority" className="text-sm font-medium">Priority</label>
-        <select id="priority" className={field} {...register('priority')}>
-          {TICKET_PRIORITIES.map((p) => (
-            <option key={p} value={p}>{PRIORITY_LABEL[p]}</option>
-          ))}
-        </select>
-      </div>
+      <Controller
+        control={control}
+        name="priority"
+        render={({ field }) => (
+          <Field htmlFor="priority" label="Priority">
+            <Select value={field.value} onValueChange={field.onChange}>
+              <SelectTrigger id="priority" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TICKET_PRIORITIES.map((priority) => (
+                  <SelectItem key={priority} value={priority}>
+                    {PRIORITY_LABEL[priority]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        )}
+      />
 
-      <button
-        type="submit"
-        disabled={isSubmitting}
-        className="self-start rounded-md bg-foreground px-5 py-2.5 text-sm font-medium text-background transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 disabled:opacity-60"
-      >
-        {isSubmitting ? 'Submitting…' : 'Submit ticket'}
-      </button>
+      <Button type="submit" size="lg" disabled={isSubmitting} className="self-start">
+        {isSubmitting ? (
+          <>
+            <Loader2 className="size-4 animate-spin" />
+            Submitting…
+          </>
+        ) : (
+          <>
+            <Send className="size-4" />
+            Submit ticket
+          </>
+        )}
+      </Button>
     </form>
   );
 }

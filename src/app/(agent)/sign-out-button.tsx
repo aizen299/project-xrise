@@ -2,24 +2,28 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { LogOut } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 export function SignOutButton() {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
 
   return (
-    <button
-      type="button"
+    <Button
+      variant="outline"
+      size="sm"
       disabled={busy}
+      aria-label="Sign out"
       onClick={async () => {
         setBusy(true);
         await fetch('/api/auth/logout', { method: 'POST' });
         router.replace('/login');
         router.refresh();
       }}
-      className="rounded-md border border-black/15 px-3 py-1.5 text-sm transition-colors hover:bg-black/5 focus-visible:ring-2 focus-visible:ring-blue-600 disabled:opacity-60 dark:border-white/20 dark:hover:bg-white/10"
     >
-      {busy ? 'Signing out…' : 'Sign out'}
-    </button>
+      <LogOut className="size-4" />
+      <span className="hidden sm:inline">{busy ? 'Signing out…' : 'Sign out'}</span>
+    </Button>
   );
 }

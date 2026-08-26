@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 export function Pagination({
   page,
@@ -20,30 +22,37 @@ export function Pagination({
     return `/dashboard?${params.toString()}`;
   }
 
-  const linkStyle =
-    'rounded-md border border-black/15 px-3 py-1.5 text-sm transition-colors hover:bg-black/5 focus-visible:ring-2 focus-visible:ring-blue-600 dark:border-white/20 dark:hover:bg-white/10';
-  const disabledStyle =
-    'rounded-md border border-black/10 px-3 py-1.5 text-sm opacity-40 dark:border-white/10';
-
   return (
     <nav aria-label="Pagination" className="flex flex-wrap items-center gap-3">
-      <p className="text-sm opacity-70">
+      <p className="text-sm text-muted-foreground">
         Page {page} of {totalPages} · {total} {total === 1 ? 'ticket' : 'tickets'}
       </p>
       <div className="ml-auto flex gap-2">
         {page > 1 ? (
-          <Link href={hrefFor(page - 1)} className={linkStyle} rel="prev">
-            Previous
-          </Link>
+          <Button asChild variant="outline" size="sm">
+            <Link href={hrefFor(page - 1)} rel="prev">
+              <ChevronLeft className="size-4" />
+              Previous
+            </Link>
+          </Button>
         ) : (
-          <span className={disabledStyle} aria-disabled="true">Previous</span>
+          <Button variant="outline" size="sm" disabled>
+            <ChevronLeft className="size-4" />
+            Previous
+          </Button>
         )}
         {page < totalPages ? (
-          <Link href={hrefFor(page + 1)} className={linkStyle} rel="next">
-            Next
-          </Link>
+          <Button asChild variant="outline" size="sm">
+            <Link href={hrefFor(page + 1)} rel="next">
+              Next
+              <ChevronRight className="size-4" />
+            </Link>
+          </Button>
         ) : (
-          <span className={disabledStyle} aria-disabled="true">Next</span>
+          <Button variant="outline" size="sm" disabled>
+            Next
+            <ChevronRight className="size-4" />
+          </Button>
         )}
       </div>
     </nav>

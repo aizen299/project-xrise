@@ -3,9 +3,17 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Loader2, Search } from 'lucide-react';
 import type { z } from 'zod';
 import { statusLookupSchema } from '@/server/validation/schemas';
 import { DataState } from '@/components/common/data-state';
+import { Field } from '@/components/common/field';
+import { StatusBadge, PriorityBadge } from '@/components/tickets/badges';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
+import { Skeleton } from '@/components/ui/skeleton';
 import type { TicketPriority, TicketStatus } from '@/types';
 
 type Values = z.input<typeof statusLookupSchema>;
@@ -19,15 +27,9 @@ interface PublicStatus {
   latestReply: { body: string; authorName: string; createdAt: string } | null;
 }
 
-const STATUS_STYLE: Record<TicketStatus, string> = {
-  open: 'border-blue-400 text-blue-700 dark:text-blue-300',
-  pending: 'border-amber-400 text-amber-700 dark:text-amber-300',
-  resolved: 'border-green-400 text-green-700 dark:text-green-300',
-  closed: 'border-neutral-400 text-neutral-600 dark:text-neutral-300',
-};
-
-const field =
-  'w-full rounded-md border border-black/15 bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-blue-600 aria-invalid:border-red-500 dark:border-white/20';
+function formatWhen(iso: string) {
+  return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+}
 
 export function StatusLookup({ initialTicketId }: { initialTicketId: string }) {
   const [result, setResult] = useState<PublicStatus | null>(null);
@@ -71,92 +73,106 @@ export function StatusLookup({ initialTicketId }: { initialTicketId: string }) {
 
   return (
     <div className="flex flex-col gap-8">
-      <form onSubmit={handleSubmit(lookup)} noValidate className="flex flex-col gap-5">
-        <div className="grid gap-5 sm:grid-cols-2">
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="ticketId" className="text-sm font-medium">Ticket ID</label>
-            <input
-              id="ticketId" placeholder="XR-XXXXXXXXXX" className={`${field} font-mono`}
-              aria-invalid={errors.ticketId ? true : undefined}
-              aria-describedby={errors.ticketId ? 'ticketId-error' : undefined}
-              {...register('ticketId')}
-            />
-            {errors.ticketId ? (
-              <p id="ticketId-error" className="text-sm text-red-700 dark:text-red-300">{errors.ticketId.message}</p>
-            ) : null}
-          </div>
+      <Card className="animate-rise surface">
+        <CardContent className="pt-6">
+          <form onSubmit={handleSubmit(lookup)} noValidate className="flex flex-col gap-5">
+            <div className="grid gap-5 sm:grid-cols-2">
+              <Field htmlFor="ticketId" label="Ticket ID" error={errors.ticketId?.message}>
+                <Input
+                  id="ticketId"
+                  placeholder="XR-XXXXXXXXXX"
+                  className="font-mono tracking-wider"
+                  aria-invalid={errors.ticketId ? true : undefined}
+                  aria-describedby={errors.ticketId ? 'ticketId-error' : undefined}
+                  {...register('ticketId')}
+                />
+              </Field>
 
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="email" className="text-sm font-medium">Email</label>
-            <input
-              id="email" type="email" autoComplete="email" className={field}
-              aria-invalid={errors.email ? true : undefined}
-              aria-describedby={errors.email ? 'email-error' : undefined}
-              {...register('email')}
-            />
-            {errors.email ? (
-              <p id="email-error" className="text-sm text-red-700 dark:text-red-300">{errors.email.message}</p>
-            ) : null}
-          </div>
-        </div>
+              <Field htmlFor="email" label="Email" error={errors.email?.message}>
+                <Input
+                  id="email"
+                  type="email"
+                  autoComplete="email"
+                  placeholder="you@company.com"
+                  aria-invalid={errors.email ? true : undefined}
+                  aria-describedby={errors.email ? 'email-error' : undefined}
+                  {...register('email')}
+                />
+              </Field>
+            </div>
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="self-start rounded-md bg-foreground px-5 py-2.5 text-sm font-medium text-background transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 disabled:opacity-60"
-        >
-          {loading ? 'Looking up…' : 'Check status'}
-        </button>
-      </form>
+            <Button type="submit" disabled={loading} className="self-start">
+              {loading ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  Looking up…
+                </>
+              ) : (
+                <>
+                  <Search className="size-4" />
+                  Check status
+                </>
+              )}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
 
       <DataState
         loading={loading}
         error={error}
         data={result}
-        loadingFallback="Looking up your ticket…"
+        loadingFallback={
+          <Card className="surface">
+            <CardContent className="flex flex-col gap-3 pt-6">
+              <Skeleton className="h-4 w-28" />
+              <Skeleton className="h-6 w-2/3" />
+              <Skeleton className="h-20 w-full" />
+            </CardContent>
+          </Card>
+        }
         onRetry={lastQuery ? () => void lookup(lastQuery) : undefined}
       >
         {(ticket) => (
-          <section aria-label="Ticket status" className="flex flex-col gap-5 rounded-lg border border-black/10 p-6 dark:border-white/15">
-            <div className="flex flex-wrap items-start gap-3">
-              <div className="min-w-0">
-                <p className="font-mono text-xs uppercase tracking-wide opacity-60">{ticket.ticketId}</p>
-                <h2 className="mt-1 text-lg font-medium">{ticket.subject}</h2>
-              </div>
-              <span className={`ml-auto shrink-0 rounded-full border px-3 py-1 text-xs font-medium uppercase tracking-wide ${STATUS_STYLE[ticket.status]}`}>
-                {ticket.status}
-              </span>
-            </div>
-
-            <dl className="grid gap-3 text-sm sm:grid-cols-2">
-              <div>
-                <dt className="opacity-60">Priority</dt>
-                <dd className="mt-0.5 capitalize">{ticket.priority}</dd>
-              </div>
-              <div>
-                <dt className="opacity-60">Submitted</dt>
-                <dd className="mt-0.5">
-                  {new Date(ticket.createdAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
-                </dd>
-              </div>
-            </dl>
-
-            <div className="border-t border-black/10 pt-4 dark:border-white/15">
-              <h3 className="text-sm font-medium">Latest reply</h3>
-              {ticket.latestReply ? (
-                <div className="mt-2">
-                  <p className="text-sm whitespace-pre-wrap">{ticket.latestReply.body}</p>
-                  <p className="mt-2 text-xs opacity-60">
-                    {ticket.latestReply.authorName} ·{' '}
-                    {new Date(ticket.latestReply.createdAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
-                  </p>
+          <section aria-label="Ticket status" className="animate-rise">
+            <Card className="surface">
+              <CardContent className="flex flex-col gap-5 pt-6">
+                <div className="flex flex-wrap items-start gap-3">
+                  <div className="min-w-0">
+                    <p className="font-mono text-xs tracking-wider text-muted-foreground">
+                      {ticket.ticketId}
+                    </p>
+                    <h2 className="mt-1 text-lg font-medium text-balance">{ticket.subject}</h2>
+                  </div>
+                  <div className="ml-auto flex shrink-0 gap-2">
+                    <StatusBadge status={ticket.status} />
+                    <PriorityBadge priority={ticket.priority} />
+                  </div>
                 </div>
-              ) : (
-                <p className="mt-2 text-sm opacity-70">
-                  No agent has replied yet. You will see their response here.
+
+                <p className="text-sm text-muted-foreground">
+                  Submitted {formatWhen(ticket.createdAt)}
                 </p>
-              )}
-            </div>
+
+                <Separator />
+
+                <div>
+                  <h3 className="text-sm font-medium">Latest reply</h3>
+                  {ticket.latestReply ? (
+                    <div className="mt-3 rounded-lg border border-primary/20 bg-primary/5 p-4">
+                      <p className="text-sm whitespace-pre-wrap">{ticket.latestReply.body}</p>
+                      <p className="mt-3 text-xs text-muted-foreground">
+                        {ticket.latestReply.authorName} · {formatWhen(ticket.latestReply.createdAt)}
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      No agent has replied yet. Their response will appear here.
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </section>
         )}
       </DataState>

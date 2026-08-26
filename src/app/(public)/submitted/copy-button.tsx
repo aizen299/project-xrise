@@ -1,27 +1,30 @@
 'use client';
 
 import { useState } from 'react';
+import { Check, Copy } from 'lucide-react';
+import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
 
 export function CopyButton({ value }: { value: string }) {
   const [copied, setCopied] = useState(false);
 
   return (
-    <button
-      type="button"
+    <Button
+      variant="outline"
       onClick={async () => {
         try {
           await navigator.clipboard.writeText(value);
           setCopied(true);
+          toast.success('Ticket ID copied');
           setTimeout(() => setCopied(false), 2000);
         } catch {
-          // Clipboard access can be denied; the id is on screen to copy manually.
-setCopied(false);
+          toast.error('Could not copy. Select the ID and copy it manually.');
         }
       }}
-      className="rounded-md border border-black/15 px-3 py-1.5 text-sm transition-colors hover:bg-black/5 focus-visible:ring-2 focus-visible:ring-blue-600 dark:border-white/20 dark:hover:bg-white/10"
     >
+      {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
       {copied ? 'Copied' : 'Copy'}
       <span className="sr-only"> ticket ID</span>
-    </button>
+    </Button>
   );
 }

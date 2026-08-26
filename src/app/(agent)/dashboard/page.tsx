@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { Inbox, SearchX } from 'lucide-react';
 import { getSession } from '@/server/auth/session';
 import { connectToDatabase } from '@/server/db/client';
 import { listTickets } from '@/server/services/ticket.service';
@@ -39,23 +40,28 @@ export default async function DashboardPage({ searchParams }: PageProps<'/dashbo
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-baseline gap-3">
+      <div className="animate-rise flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">Tickets</h1>
-        <p className="text-sm opacity-70">
+        <p className="text-sm text-muted-foreground">
           {session.role === 'admin'
             ? 'You can see every ticket.'
             : 'You can see tickets assigned to you.'}
         </p>
       </div>
 
-      <TicketFilters agents={agents} canFilterByAssignee={session.role === 'admin'} />
+      <div className="animate-rise" style={{ animationDelay: '50ms' }}>
+        <TicketFilters agents={agents} canFilterByAssignee={session.role === 'admin'} />
+      </div>
 
       {page.rows.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-black/15 px-6 py-12 text-center dark:border-white/20">
+        <div className="animate-rise surface flex flex-col items-center gap-3 rounded-xl px-6 py-16 text-center">
+          <span className="grid size-12 place-items-center rounded-2xl bg-secondary text-muted-foreground">
+            {isFiltered ? <SearchX className="size-6" /> : <Inbox className="size-6" />}
+          </span>
           <p className="font-medium">
             {isFiltered ? 'No tickets match these filters' : 'No tickets yet'}
           </p>
-          <p className="mt-1 text-sm opacity-70">
+          <p className="max-w-sm text-sm text-muted-foreground">
             {isFiltered
               ? 'Try widening the search, or clear the filters to see everything you have access to.'
               : session.role === 'admin'

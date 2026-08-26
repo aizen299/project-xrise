@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
+import { ArrowLeft } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { getSession } from '@/server/auth/session';
 import { connectToDatabase } from '@/server/db/client';
 import { getTicketDetail } from '@/server/services/ticket.service';
@@ -37,9 +39,12 @@ export default async function TicketDetailPage({ params }: PageProps<'/tickets/[
 
   return (
     <div className="flex flex-col gap-6">
-      <Link href="/dashboard" className="text-sm underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-blue-600">
-        ← Back to tickets
-      </Link>
+      <Button asChild variant="ghost" size="sm" className="-ml-2 self-start">
+        <Link href="/dashboard">
+          <ArrowLeft className="size-4" />
+          Back to tickets
+        </Link>
+      </Button>
       <TicketWorkspace
         ticket={ticket}
         agents={agents}

@@ -2,11 +2,21 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTransition } from 'react';
+import { Loader2, Search, X } from 'lucide-react';
 import { TICKET_PRIORITIES, TICKET_STATUSES } from '@/types';
 import type { AssignableAgent } from '@/server/services/agent.service';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
-const control =
-  'rounded-md border border-black/15 bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-blue-600 dark:border-white/20';
+const ANY = '__any__';
 
 export function TicketFilters({
   agents,
@@ -23,17 +33,20 @@ export function TicketFilters({
   function apply(next: Record<string, string>) {
     const merged = new URLSearchParams(params.toString());
     for (const [key, value] of Object.entries(next)) {
-      if (value) merged.set(key, value);
+      if (value && value !== ANY) merged.set(key, value);
       else merged.delete(key);
     }
     merged.delete('page');
     startTransition(() => router.push(`/dashboard?${merged.toString()}`));
   }
 
-  const hasFilters = ['status', 'priority', 'assigneeId', 'q'].some((k) => params.get(k));
+  const hasFilters = ['status', 'priority', 'assigneeId', 'q'].some((key) => params.get(key));
 
   return (
-    <section aria-label="Filters" className="flex flex-col gap-3">
+    <section
+      aria-label="Filters"
+      className="glass flex flex-col gap-4 rounded-xl p-4 sm:flex-row sm:flex-wrap sm:items-end"
+    >
       <form
         role="search"
         onSubmit={(event) => {
@@ -41,103 +54,105 @@ export function TicketFilters({
           const value = new FormData(event.currentTarget).get('q');
           apply({ q: typeof value === 'string' ? value.trim() : '' });
         }}
-        className="flex flex-wrap items-end gap-3"
+        className="flex min-w-64 flex-1 flex-col gap-2"
       >
-        <div className="flex min-w-56 flex-1 flex-col gap-1.5">
-          <label htmlFor="q" className="text-sm font-medium">
+        <Label htmlFor="q">Search</Label>
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              key={currentSearch}
+              id="q"
+              name="q"
+              type="search"
+              defaultValue={currentSearch}
+              placeholder="Subject or description"
+              className="pl-9"
+            />
+          </div>
+          <Button type="submit" variant="secondary">
             Search
-          </label>
-          <input
-            key={currentSearch}
-            id="q"
-            name="q"
-            type="search"
-            defaultValue={currentSearch}
-            placeholder="Subject or description"
-            className={control}
-          />
+          </Button>
         </div>
-        <button
-          type="submit"
-          className="rounded-md border border-black/15 px-4 py-2 text-sm transition-colors hover:bg-black/5 focus-visible:ring-2 focus-visible:ring-blue-600 dark:border-white/20 dark:hover:bg-white/10"
-        >
-          Search
-        </button>
       </form>
 
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="status" className="text-sm font-medium">
-            Status
-          </label>
-          <select
-            id="status"
-            className={control}
-            value={params.get('status') ?? ''}
-            onChange={(event) => apply({ status: event.target.value })}
-          >
-            <option value="">All statuses</option>
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="status">Status</Label>
+        <Select
+          value={params.get('status') ?? ANY}
+          onValueChange={(value) => apply({ status: value })}
+        >
+          <SelectTrigger id="status" className="w-40">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ANY}>All statuses</SelectItem>
             {TICKET_STATUSES.map((status) => (
-              <option key={status} value={status}>
+              <SelectItem key={status} value={status} className="capitalize">
                 {status}
-              </option>
+              </SelectItem>
             ))}
-          </select>
-        </div>
+          </SelectContent>
+        </Select>
+      </div>
 
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="priority" className="text-sm font-medium">
-            Priority
-          </label>
-          <select
-            id="priority"
-            className={control}
-            value={params.get('priority') ?? ''}
-            onChange={(event) => apply({ priority: event.target.value })}
-          >
-            <option value="">All priorities</option>
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="priority">Priority</Label>
+        <Select
+          value={params.get('priority') ?? ANY}
+          onValueChange={(value) => apply({ priority: value })}
+        >
+          <SelectTrigger id="priority" className="w-40">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ANY}>All priorities</SelectItem>
             {TICKET_PRIORITIES.map((priority) => (
-              <option key={priority} value={priority}>
+              <SelectItem key={priority} value={priority} className="capitalize">
                 {priority}
-              </option>
+              </SelectItem>
             ))}
-          </select>
-        </div>
+          </SelectContent>
+        </Select>
+      </div>
 
-        {canFilterByAssignee ? (
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="assigneeId" className="text-sm font-medium">
-              Assignee
-            </label>
-            <select
-              id="assigneeId"
-              className={control}
-              value={params.get('assigneeId') ?? ''}
-              onChange={(event) => apply({ assigneeId: event.target.value })}
-            >
-              <option value="">Anyone</option>
-              <option value="unassigned">Unassigned</option>
-              {agents.map((agent) => (
-                <option key={agent.id} value={agent.id}>
-                  {agent.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        ) : null}
-
-        {hasFilters ? (
-          <button
-            type="button"
-            onClick={() => startTransition(() => router.push('/dashboard'))}
-            className="rounded-md px-3 py-2 text-sm underline underline-offset-4 hover:opacity-80 focus-visible:ring-2 focus-visible:ring-blue-600"
+      {canFilterByAssignee ? (
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="assigneeId">Assignee</Label>
+          <Select
+            value={params.get('assigneeId') ?? ANY}
+            onValueChange={(value) => apply({ assigneeId: value })}
           >
-            Clear filters
-          </button>
-        ) : null}
+            <SelectTrigger id="assigneeId" className="w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ANY}>Anyone</SelectItem>
+              <SelectItem value="unassigned">Unassigned</SelectItem>
+              {agents.map((agent) => (
+                <SelectItem key={agent.id} value={agent.id}>
+                  {agent.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      ) : null}
 
-        <span aria-live="polite" className="text-sm opacity-70">
-          {pending ? 'Updating…' : ''}
+      <div className="flex items-center gap-2">
+        {hasFilters ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => startTransition(() => router.push('/dashboard'))}
+          >
+            <X className="size-4" />
+            Clear
+          </Button>
+        ) : null}
+        <span aria-live="polite" className="text-sm text-muted-foreground">
+          {pending ? <Loader2 className="size-4 animate-spin" aria-label="Updating" /> : null}
         </span>
       </div>
     </section>
